@@ -7,8 +7,8 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // includeAssets ensures these are cached for offline use
-      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png', 'favicon.svg', 'apple-touch-icon.png'],
+      // We only include the assets that actually exist in your public folder
+      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'StudyFlow Academic',
         short_name: 'StudyFlow',
@@ -16,19 +16,33 @@ export default defineConfig({
         theme_color: '#000000',
         background_color: '#000000',
         display: 'standalone',
+        scope: '/',
+        start_url: '/',
         orientation: 'portrait',
         icons: [
           {
             src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
-            purpose: 'any maskable' // Fixed: Added maskable support for 192px
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable' // Supported for 512px
+            purpose: 'any'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           }
         ]
       }
