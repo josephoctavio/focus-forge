@@ -15,7 +15,7 @@ import EditProfile from './pages/EditProfile';
 import CourseManager from './pages/CourseManager';
 import ScheduleManager from './pages/ScheduleManager';
 import Settings from './pages/Settings';
-import PrivacySecurity from './pages/PrivacySecurity'; // <--- IMPORTED
+import PrivacySecurity from './pages/PrivacySecurity'; 
 
 function App() {
   const [session, setSession] = useState(null);
@@ -29,6 +29,7 @@ function App() {
 
   // --- AUTH LOGIC ---
   useEffect(() => {
+    // Check initial session
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
@@ -37,9 +38,15 @@ function App() {
 
     checkSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       setInitializing(false);
+
+      // NEW: Handle Password Reset link click
+      if (event === "PASSWORD_RECOVERY") {
+        setActiveTab('edit-profile'); 
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -109,10 +116,12 @@ function App() {
     border: darkMode ? '#222222' : '#E5E5E5'
   }), [darkMode]);
 
+  // Prevent flash during auth check
   if (initializing) {
     return <div style={{ backgroundColor: theme.bg, minHeight: '100vh' }} />;
   }
 
+  // Show Auth if not logged in
   if (!session) {
     return <Auth />;
   }
@@ -162,6 +171,7 @@ function App() {
             <CourseManager setActiveTab={setActiveTab} theme={theme} />
           )}
 
+          {/* SCHEDULE MANAGER */}
           {activeTab === 'schedule-manager' && (
             <ScheduleManager setActiveTab={setActiveTab} theme={theme} />
           )}
