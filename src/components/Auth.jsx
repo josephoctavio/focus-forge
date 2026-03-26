@@ -6,7 +6,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [resetMode, setResetMode] = useState(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false); // New state for recovery
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false); 
   const [showPassword, setShowPassword] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -14,7 +14,15 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
 
   useEffect(() => {
-    // Listen for the password recovery event from the email link
+    // 1. Check the URL immediately on load (Critical for catches after redirect)
+    const hash = window.location.hash;
+    if (hash && hash.includes("type=recovery")) {
+      setIsUpdatingPassword(true);
+      setResetMode(false);
+      setIsSignUp(false);
+    }
+
+    // 2. Also listen for the event for better reliability while app is open
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsUpdatingPassword(true);
@@ -36,6 +44,9 @@ export default function Auth() {
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
         alert('Password updated successfully! You can now log in.');
+        
+        // Clean up URL and state
+        window.history.replaceState(null, null, ' '); 
         setIsUpdatingPassword(false);
         setPassword('');
       } else if (resetMode) {

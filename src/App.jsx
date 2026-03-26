@@ -22,6 +22,7 @@ function App() {
   const [initializing, setInitializing] = useState(true); 
   const [activeTab, setActiveTab] = useState('home');
   const [darkMode, setDarkMode] = useState(true); 
+  const [isRecoveringPassword, setIsRecoveringPassword] = useState(false); // <--- NEW STATE
   
   const [assignments, setAssignments] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -43,9 +44,14 @@ function App() {
       setSession(session);
       setInitializing(false);
 
-      // NEW: Handle Password Reset link click
+      // NEW: Intercept Recovery Event
       if (event === "PASSWORD_RECOVERY") {
-        setActiveTab('edit-profile'); 
+        setIsRecoveringPassword(true); 
+      }
+      
+      // Reset recovery state on sign out or successful login
+      if (event === "SIGNED_OUT") {
+        setIsRecoveringPassword(false);
       }
     });
 
@@ -116,16 +122,22 @@ function App() {
     border: darkMode ? '#222222' : '#E5E5E5'
   }), [darkMode]);
 
-  // Prevent flash during auth check
+  // 1. Initializing state
   if (initializing) {
     return <div style={{ backgroundColor: theme.bg, minHeight: '100vh' }} />;
   }
 
-  // Show Auth if not logged in
+  // 2. Recovery Mode - Force Auth component with recovery flag
+  if (isRecoveringPassword) {
+    return <Auth recoveryMode={true} />;
+  }
+
+  // 3. No Session - Normal Auth
   if (!session) {
     return <Auth />;
   }
 
+  // 4. Main App Shell
   return (
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`} style={{ backgroundColor: theme.bg }}>
       
@@ -171,7 +183,6 @@ function App() {
             <CourseManager setActiveTab={setActiveTab} theme={theme} />
           )}
 
-          {/* SCHEDULE MANAGER */}
           {activeTab === 'schedule-manager' && (
             <ScheduleManager setActiveTab={setActiveTab} theme={theme} />
           )}
