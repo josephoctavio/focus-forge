@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Mail, Lock, User, Eye, EyeOff, ArrowLeft, ShieldCheck, Save } from 'lucide-react';
+import { Mail, Lock, User, Eye, EyeOff, ArrowLeft, ShieldCheck } from 'lucide-react';
 
-export default function Auth() {
+// Added forceRecovery prop from App.jsx
+export default function Auth({ forceRecovery = false }) {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
   const [resetMode, setResetMode] = useState(false);
-  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false); 
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(forceRecovery); 
   const [showPassword, setShowPassword] = useState(false);
   
   const [email, setEmail] = useState('');
@@ -14,13 +15,16 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
 
   useEffect(() => {
-    // 1. Detect if the user arrived here from a recovery email link
-    // Supabase puts "type=recovery" in the URL hash when you click that link
+    // Rely on the prop from App.jsx first
+    if (forceRecovery) {
+        setIsUpdatingPassword(true);
+        return;
+    }
+
     if (window.location.hash.includes('type=recovery')) {
       setIsUpdatingPassword(true);
     }
 
-    // 2. Also listen for the internal Supabase event
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsUpdatingPassword(true);
@@ -28,7 +32,7 @@ export default function Auth() {
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [forceRecovery]);
 
   const handleAuth = async (e) => {
     e.preventDefault();
@@ -36,17 +40,15 @@ export default function Auth() {
 
     try {
       if (isUpdatingPassword) {
-        // STEP: Save the NEW password
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
         alert('Password saved! Please log in with your new password.');
         
-        // Redirect back to normal login state
         setIsUpdatingPassword(false);
         setPassword('');
-        window.location.hash = ''; // Clear the recovery token from URL
+        // Clear the URL hash entirely to escape recovery mode
+        window.history.replaceState(null, null, window.location.pathname);
       } else if (resetMode) {
-        // STEP: Send the email link
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin, 
         });
@@ -54,7 +56,6 @@ export default function Auth() {
         alert('Check your email for the reset link!');
         setResetMode(false);
       } else if (isSignUp) {
-        // STEP: Sign Up
         const { data, error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
         if (data.user) {
@@ -62,7 +63,6 @@ export default function Auth() {
         }
         alert('Account created!');
       } else {
-        // STEP: Normal Login
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
@@ -92,8 +92,7 @@ export default function Auth() {
         </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
-          {/* Back button for non-login states */}
-          {(resetMode || isUpdatingPassword) && (
+          {(resetMode || (isUpdatingPassword && !forceRecovery)) && (
             <button 
               type="button" 
               onClick={() => { setResetMode(false); setIsUpdatingPassword(false); }}
@@ -103,7 +102,6 @@ export default function Auth() {
             </button>
           )}
 
-          {/* Registration only */}
           {isSignUp && !resetMode && !isUpdatingPassword && (
             <div className="relative">
               <User className="absolute left-3 top-3.5 text-zinc-600" size={18} />
@@ -117,7 +115,6 @@ export default function Auth() {
             </div>
           )}
 
-          {/* Email input (Hidden when actually typing the new password) */}
           {!isUpdatingPassword && (
             <div className="relative">
               <Mail className="absolute left-3 top-3.5 text-zinc-600" size={18} />
@@ -132,7 +129,6 @@ export default function Auth() {
             </div>
           )}
 
-          {/* Password input (Hidden when only requesting the reset email) */}
           {!resetMode && (
             <div className="relative">
               <Lock className="absolute left-3 top-3.5 text-zinc-600" size={18} />

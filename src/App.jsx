@@ -30,22 +30,22 @@ function App() {
 
   // --- AUTH LOGIC ---
   useEffect(() => {
-    // Check initial session and URL for recovery tokens
+    // 1. HARD URL CHECK FIRST: Intercept recovery before anything else
+    const hash = window.location.hash;
+    if (hash && hash.includes('type=recovery')) {
+      setIsRecoveringPassword(true);
+      setInitializing(false); // Stop loading, force to Auth screen
+      return; // Exit early so checkInitialAuth doesn't override this
+    }
+
     const checkInitialAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       setSession(session);
-
-      // Check if we arrived via a recovery link immediately
-      if (window.location.hash.includes('type=recovery')) {
-        setIsRecoveringPassword(true);
-      }
-      
       setInitializing(false);
     };
 
     checkInitialAuth();
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       
@@ -55,15 +55,17 @@ function App() {
       
       if (event === "SIGNED_OUT") {
         setIsRecoveringPassword(false);
-        setActiveTab('home'); // Reset tab on logout
+        setActiveTab('home'); 
       }
 
       if (event === "USER_UPDATED" && isRecoveringPassword) {
-        // This triggers after a successful password save
         setIsRecoveringPassword(false);
       }
 
-      setInitializing(false);
+      // Only stop initializing if we aren't explicitly holding for recovery
+      if (!isRecoveringPassword) {
+        setInitializing(false);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -95,7 +97,7 @@ function App() {
   };
 
   const fetchAllData = useCallback(async () => {
-    if (!session || isRecoveringPassword) return; // Don't fetch data during recovery
+    if (!session || isRecoveringPassword) return; 
     
     setLoading(true);
     try {
@@ -127,18 +129,19 @@ function App() {
     danger: '#FF3B30'
   }), [darkMode]);
 
-  // 1. Loading State
   if (initializing) {
     return <div style={{ backgroundColor: '#000', minHeight: '100vh' }} />;
   }
 
-  // 2. Auth Gate (Login or Password Reset)
-  // We show Auth if there is no session OR if we are specifically in recovery mode
-  if (!session || isRecoveringPassword) {
+  // FORCE AUTH COMPONENT IF IN RECOVERY MODE
+  if (isRecoveringPassword) {
+    return <Auth forceRecovery={true} />; 
+  }
+
+  if (!session) {
     return <Auth />;
   }
 
-  // 3. Main App Shell
   return (
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`} style={{ backgroundColor: theme.bg, color: theme.text, minHeight: '100vh' }}>
       <div className="mobile-container">
