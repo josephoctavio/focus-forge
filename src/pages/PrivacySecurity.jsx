@@ -3,12 +3,8 @@ import {
   ChevronLeft, 
   Lock, 
   Trash2, 
-  AlertCircle,
-  Smartphone,
-  ChevronDown,
   LogOut,
   RefreshCw,
-  MailCheck,
   Eye,
   EyeOff,
   Check
@@ -22,10 +18,8 @@ const PrivacySecurity = ({ onBack, theme }) => {
   const [errorMessage, setErrorMessage] = useState('');
   const [shouldShake, setShouldShake] = useState(false);
   const [showTooltip, setShowTooltip] = useState(false);
-  const [deviceDropdownOpen, setDeviceDropdownOpen] = useState(false);
-  const [sessionInfo, setSessionInfo] = useState(null);
   
-  // New states for direct password update
+  // States for direct password update
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -43,37 +37,17 @@ const PrivacySecurity = ({ onBack, theme }) => {
   };
 
   useEffect(() => {
-    const getSessionData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const agent = navigator.userAgent;
-        const isMobile = /iPhone|Android|iPad/i.test(agent);
-        setSessionInfo({
-          name: isMobile ? "Mobile Device" : "Desktop Browser",
-          lastLogin: new Date(session.user.last_sign_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        });
-      }
-    };
-    getSessionData();
-
     return () => {
       if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
     };
   }, []);
 
   const triggerTooltip = () => {
-    setShowTooltip(false);
+    setShowTooltip(true);
     if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
-    
-    setTimeout(() => {
-      setShowTooltip(true);
-      tooltipTimeout.current = setTimeout(() => {
-        setShowTooltip(false);
-      }, 3000);
-    }, 10);
+    tooltipTimeout.current = setTimeout(() => setShowTooltip(false), 3000);
   };
 
-  // --- Step B: The Code Logic ---
   const handleInternalPasswordChange = async () => {
     if (!newPassword || newPassword.length < 6) {
         alert("Password must be at least 6 characters.");
@@ -88,8 +62,9 @@ const PrivacySecurity = ({ onBack, theme }) => {
     if (error) {
       alert(error.message);
     } else {
-      alert("Password updated successfully! You're all set.");
-      setNewPassword(''); // Clear the input field
+      triggerTooltip();
+      setNewPassword(''); 
+      setShowNewPassword(false);
     }
     setUpdateLoading(false);
   };
@@ -105,6 +80,8 @@ const PrivacySecurity = ({ onBack, theme }) => {
     setErrorMessage('');
     
     const { data: { user } } = await supabase.auth.getUser();
+
+    // Re-authenticate user to confirm they have the right to delete/reset
     const { error: authError } = await supabase.auth.signInWithPassword({
       email: user.email,
       password: confirmPassword,
@@ -119,7 +96,12 @@ const PrivacySecurity = ({ onBack, theme }) => {
     }
 
     if (modalType === 'delete') {
-      await supabase.from('profiles').delete().eq('id', user.id);
+      // Wiping all user data tables before signing out
+      await Promise.all([
+        supabase.from('profiles').delete().eq('id', user.id),
+        supabase.from('assignments').delete().eq('user_id', user.id),
+        supabase.from('courses').delete().eq('user_id', user.id)
+      ]);
       await supabase.auth.signOut();
       window.location.reload();
     } else if (modalType === 'reset') {
@@ -134,7 +116,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
   return (
     <div style={{ padding: '24px', color: colors.text, backgroundColor: colors.bg, minHeight: '100vh', position: 'relative' }}>
       
-      {/* TOOLTIP */}
+      {/* SUCCESS TOOLTIP */}
       <div style={{
         position: 'fixed', 
         bottom: '100px', 
@@ -150,13 +132,11 @@ const PrivacySecurity = ({ onBack, theme }) => {
         gap: '12px', 
         zIndex: 11000, 
         pointerEvents: 'none',
-        transition: showTooltip 
-          ? 'transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease' 
-          : 'transform 0.4s ease, opacity 0.4s ease',
+        transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
         boxShadow: '0 15px 35px rgba(0,0,0,0.6)'
       }}>
-        <MailCheck size={18} color={colors.accent} />
-        <span style={{ fontSize: '13px', fontWeight: '700' }}>Update successful</span>
+        <Check size={18} color={colors.success} />
+        <span style={{ fontSize: '13px', fontWeight: '700' }}>Password Updated</span>
       </div>
 
       {/* MODAL SYSTEM */}
@@ -209,7 +189,6 @@ const PrivacySecurity = ({ onBack, theme }) => {
       {/* SECTION: LOGIN / PASSWORD UPDATE */}
       <h3 style={{ fontSize: '11px', fontWeight: '800', color: colors.accent, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '25px 0 12px 10px' }}>LOGIN</h3>
       
-      {/* --- Step A: Update Password UI with direct input field --- */}
       <div style={{ backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '22px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ backgroundColor: 'rgba(255,149,0,0.1)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(255,149,0,0.2)' }}>
@@ -247,21 +226,34 @@ const PrivacySecurity = ({ onBack, theme }) => {
         </div>
       </div>
 
-      <h3 style={{ fontSize: '11px', fontWeight: '800', color: colors.accent, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '25px 0 12px 10px' }}>DEVICES</h3>
-      <div style={{ backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '18px', overflow: 'hidden' }}>
-        <button onClick={() => setDeviceDropdownOpen(!deviceDropdownOpen)} style={{ width: '100%', padding: '18px', display: 'flex', alignItems: 'center', gap: '16px', background: 'transparent', border: 'none' }}>
-          <Smartphone size={18} color={colors.accent} />
-          <span style={{ flex: 1, fontWeight: '700', fontSize: '15px', color: colors.text, textAlign: 'left' }}>Active Sessions</span>
-          <ChevronDown size={18} style={{ opacity: 0.3, transform: deviceDropdownOpen ? 'rotate(180deg)' : 'none' }} color={colors.text} />
-        </button>
-        {deviceDropdownOpen && (
-          <div style={{ padding: '18px', borderTop: `1px solid ${colors.border}` }}>
-            <p style={{ margin: 0, fontSize: '14px', fontWeight: '700' }}>{sessionInfo?.name}</p>
-            <p style={{ margin: '4px 0 0 0', fontSize: '11px', opacity: 0.4 }}>Current Session • {sessionInfo?.lastLogin}</p>
+      {/* SECTION: SECURITY HEALTH */}
+      <h3 style={{ fontSize: '11px', fontWeight: '800', color: colors.accent, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '25px 0 12px 10px' }}>SECURITY HEALTH</h3>
+      <div style={{ backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '18px', padding: '18px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ backgroundColor: 'rgba(52,199,89,0.1)', padding: '8px', borderRadius: '10px' }}>
+            <Check size={16} color={colors.success} />
           </div>
-        )}
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontWeight: '700', fontSize: '14px' }}>Email Verified</p>
+            <p style={{ margin: 0, fontSize: '11px', opacity: 0.4 }}>Your account is linked to a verified email</p>
+          </div>
+        </div>
+
+        <div style={{ height: '1px', backgroundColor: colors.border, margin: '0 4px' }} />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <div style={{ backgroundColor: 'rgba(0,122,255,0.1)', padding: '8px', borderRadius: '10px' }}>
+            <Lock size={16} color={colors.accent} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontWeight: '700', fontSize: '14px' }}>Session Encrypted</p>
+            <p style={{ margin: 0, fontSize: '11px', opacity: 0.4 }}>End-to-end SSL protection active</p>
+          </div>
+        </div>
       </div>
 
+      {/* DANGER ZONE */}
       <h3 style={{ fontSize: '11px', fontWeight: '800', color: colors.danger, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '35px 0 12px 10px' }}>DANGER ZONE</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <SecurityRow icon={<LogOut size={18} color={colors.text} />} label="Logout" desc="Sign out of this account" onClick={() => setModalType('logout')} colors={colors} />

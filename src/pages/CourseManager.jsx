@@ -42,8 +42,13 @@ const CourseManager = ({ setActiveTab, theme }) => {
   };
 
   const fetchCourses = async () => {
-    const { data } = await supabase.from('courses').select('*').order('created_at', { ascending: false });
-    if (data) setCourses(data);
+    try {
+        const { data, error } = await supabase.from('courses').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        if (data) setCourses(data);
+    } catch (err) {
+        console.error("Fetch error:", err);
+    }
   };
 
   useEffect(() => { fetchCourses(); }, []);
@@ -56,9 +61,16 @@ const CourseManager = ({ setActiveTab, theme }) => {
   const addCourse = async () => {
     const trimmedName = courseName.trim();
     
+    // 1. Check for empty data
     if (!trimmedName) {
       triggerError("Course Title is required");
       return;
+    }
+
+    // 2. Check for Internet Connection
+    if (!window.navigator.onLine) {
+        triggerError("No internet connection. Please check your network.");
+        return;
     }
 
     if (loading) return;
@@ -78,7 +90,12 @@ const CourseManager = ({ setActiveTab, theme }) => {
     ]);
 
     if (dbError) {
-      triggerError("Database error. Try again.");
+      // Check if it's a connection/network error from the DB response
+      if (dbError.message?.toLowerCase().includes('fetch') || dbError.code === 'PGRST301') {
+        triggerError("Connection failed. Check your network.");
+      } else {
+        triggerError("Database error. Try again.");
+      }
       setLoading(false);
     } else {
       showToast("Saved Successfully");
@@ -88,10 +105,17 @@ const CourseManager = ({ setActiveTab, theme }) => {
 
   const deleteCourse = (id) => {
     showConfirm("Delete Course?", "This will permanently remove this course.", async () => {
+      if (!window.navigator.onLine) {
+        showToast("No internet connection", "delete");
+        closeModal();
+        return;
+      }
       const { error } = await supabase.from('courses').delete().eq('id', id);
       if (!error) {
         fetchCourses();
         showToast("Deleted Successfully", "delete");
+      } else {
+        showToast("Error deleting course", "delete");
       }
       closeModal();
     });
@@ -99,6 +123,11 @@ const CourseManager = ({ setActiveTab, theme }) => {
 
   const deleteAllCourses = () => {
     showConfirm("DELETE EVERYTHING?", "All courses will be wiped forever.", async () => {
+      if (!window.navigator.onLine) {
+        showToast("No internet connection", "delete");
+        closeModal();
+        return;
+      }
       const { error } = await supabase.from('courses').delete().neq('id', 0);
       if (!error) {
         fetchCourses();
@@ -163,7 +192,7 @@ const CourseManager = ({ setActiveTab, theme }) => {
               value={courseName} 
               onChange={(e) => { 
                 setCourseName(e.target.value); 
-                if(error) setError(null); // ✅ Clears error while typing
+                if(error) setError(null); 
               }} 
               style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: theme.bg, border: `1px solid ${error ? '#FF2D55' : theme.border}`, color: theme.text, outline: 'none', boxSizing: 'border-box' }} 
             />
@@ -209,7 +238,7 @@ const CourseManager = ({ setActiveTab, theme }) => {
         )}
       </div>
 
-      {/* CLEAR ALL BUTTON - Fixed visibility logic */}
+      {/* CLEAR ALL BUTTON */}
       {courses.length >= 6 && !isFormOpen && (
         <button onClick={deleteAllCourses} style={{ width: '100%', padding: '16px', backgroundColor: 'transparent', border: `1px dashed ${theme.border}`, color: '#FF2D55', borderRadius: '20px', fontWeight: '700', fontSize: '12px', cursor: 'pointer', marginTop: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
           <Trash2 size={14} /> CLEAR ALL COURSES ({courses.length})

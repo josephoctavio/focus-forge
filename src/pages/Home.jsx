@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
-import { BookOpen, Clock, Zap, Calendar, MapPin, CheckCircle2 } from 'lucide-react';
+import { BookOpen, Clock, Zap, MapPin, CheckCircle2, RefreshCw, AlertCircle } from 'lucide-react';
 
 const Home = ({ theme, darkMode, userId }) => {
   const [stats, setStats] = useState({ 
@@ -12,6 +12,30 @@ const Home = ({ theme, darkMode, userId }) => {
   const [todayClasses, setTodayClasses] = useState([]);
   const [userName, setUserName] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Helper: Format 24h to 12h (e.g., 14:30 -> 02:30 PM)
+  const formatTime = (timeStr) => {
+    if (!timeStr) return '';
+    const [hours, minutes] = timeStr.split(':');
+    let h = parseInt(hours);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return `${h}:${minutes} ${ampm}`;
+  };
+
+  // --- Network Monitoring ---
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const getProgressColor = (percent, total) => {
     if (total === 0) return '#007AFF'; 
@@ -35,6 +59,8 @@ const Home = ({ theme, darkMode, userId }) => {
   }).format(new Date()).toUpperCase();
 
   const fetchDashboardData = useCallback(async () => {
+    setIsError(false);
+    setLoading(true);
     try {
       let activeId = userId;
       if (!activeId) {
@@ -61,16 +87,18 @@ const Home = ({ theme, darkMode, userId }) => {
       let scheduleQuery = supabase.from('timetable').select('*, courses(name, color)').eq('day_of_week', todayName).order('start_time', { ascending: true });
 
       const [
-        { count: totalTasks },
-        { count: completedTasks },
-        { count: courseCount },
-        { data: schedule }
+        { count: totalTasks, error: e1 },
+        { count: completedTasks, error: e2 },
+        { count: courseCount, error: e3 },
+        { data: schedule, error: e4 }
       ] = await Promise.all([
         assignmentsQuery,
         completedQuery,
         coursesQuery,
         scheduleQuery
       ]);
+
+      if (e1 || e2 || e3 || e4) throw new Error("Database Fetch Failed");
 
       setStats({
         totalTasks: totalTasks || 0,
@@ -83,8 +111,9 @@ const Home = ({ theme, darkMode, userId }) => {
 
     } catch (error) {
       console.error("Dashboard fetch error:", error);
+      setIsError(true);
     } finally {
-      setLoading(false);
+      setTimeout(() => setLoading(false), 600); 
     }
   }, [todayName, userId]);
 
@@ -99,26 +128,90 @@ const Home = ({ theme, darkMode, userId }) => {
     return () => { supabase.removeChannel(channel); };
   }, [fetchDashboardData]);
 
-  if (loading) return <div style={{ padding: '20px', backgroundColor: theme?.bg }} />;
+  // --- SKELETON LOADING UI ---
+  if (loading) {
+    return (
+      <div style={{ padding: '15px', backgroundColor: theme?.bg, minHeight: '100vh' }}>
+        <div className="skeleton" style={{ width: '150px', height: '20px', borderRadius: '4px', marginBottom: '8px' }} />
+        <div className="skeleton" style={{ width: '100px', height: '12px', borderRadius: '4px', marginBottom: '25px' }} />
+        <div className="skeleton" style={{ width: '100%', height: '140px', borderRadius: '24px', marginBottom: '15px' }} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+          <div className="skeleton" style={{ height: '80px', borderRadius: '20px' }} />
+          <div className="skeleton" style={{ height: '80px', borderRadius: '20px' }} />
+        </div>
+        <div className="skeleton" style={{ width: '120px', height: '10px', borderRadius: '4px', marginBottom: '15px' }} />
+        <div className="skeleton" style={{ width: '100%', height: '70px', borderRadius: '20px', marginBottom: '10px' }} />
+        <style>{`
+          .skeleton { 
+            background: ${darkMode ? '#1A1A1A' : '#E1E1E1'};
+            background-image: linear-gradient(90deg, transparent, ${darkMode ? '#222' : '#F0F0F0'}, transparent);
+            background-size: 200px 100%;
+            background-repeat: no-repeat;
+            animation: shimmer 1.5s infinite linear;
+          }
+          @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+        `}</style>
+      </div>
+    );
+  }
+
+  // --- ERROR STATE UI ---
+  if (isError) {
+    return (
+      <div style={{ padding: '40px 20px', backgroundColor: theme?.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
+        <AlertCircle size={48} color="#FF3B30" style={{ marginBottom: '16px', opacity: 0.5 }} />
+        <h2 style={{ fontSize: '18px', fontWeight: '900', color: theme?.text, marginBottom: '8px' }}>Failed to load data</h2>
+        <p style={{ fontSize: '13px', color: theme?.text, opacity: 0.6, marginBottom: '24px' }}>Please check your internet connection and try again.</p>
+        <button 
+          onClick={fetchDashboardData}
+          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', backgroundColor: '#007AFF', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}
+        >
+          <RefreshCw size={18} /> RETRY
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <div style={{ padding: '15px', paddingBottom: '100px', color: theme?.text }}>
+    <div style={{ padding: '15px', paddingBottom: '100px', color: theme?.text, backgroundColor: theme?.bg }}>
       
-      {/* 1. WELCOME SECTION */}
-      <header style={{ marginBottom: '20px', textAlign: 'left', marginTop: '5px' }}>
-        <h1 style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '-0.3px', margin: 0, display: 'flex', alignItems: 'baseline', gap: '5px' }}>
-          <span style={{ whiteSpace: 'nowrap', opacity: 0.8 }}>{greeting},</span>
-          <span style={{ color: '#007AFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '180px' }}>
-            {userName || 'Scholar'}
+      {/* 1. WELCOME SECTION + NETWORK INDICATOR */}
+      <header style={{ marginBottom: '20px', textAlign: 'left', marginTop: '5px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '-0.3px', margin: 0, display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+            <span style={{ whiteSpace: 'nowrap', opacity: 0.8 }}>{greeting},</span>
+            <span style={{ color: '#007AFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+              {userName}
+            </span>
+          </h1>
+          <p style={{ color: darkMode ? '#777' : '#666', margin: 0, fontSize: '12px', fontWeight: '700' }}>
+            {stats.totalTasks > 0 ? (
+              <>You have <span style={{ color: '#007AFF' }}>{stats.totalTasks - stats.completedTasks} tasks</span> remaining.</>
+            ) : (
+              "Nothing pending for today."
+            )}
+          </p>
+        </div>
+
+        {/* STATUS INDICATOR (RIGHT SIDE) */}
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: '6px', 
+          padding: '6px 10px', 
+          backgroundColor: isOnline ? 'rgba(52, 199, 89, 0.1)' : 'rgba(255, 59, 48, 0.1)',
+          borderRadius: '50px',
+          border: `1px solid ${isOnline ? 'rgba(52, 199, 89, 0.2)' : 'rgba(255, 59, 48, 0.2)'}`
+        }}>
+          <div style={{ 
+            width: '6px', height: '6px', borderRadius: '50%', 
+            backgroundColor: isOnline ? '#34C759' : '#FF3B30',
+            animation: isOnline ? 'pulseGreen 2s infinite' : 'none'
+          }} />
+          <span style={{ fontSize: '9px', fontWeight: '900', color: isOnline ? '#34C759' : '#FF3B30' }}>
+            {isOnline ? 'ONLINE' : 'OFFLINE'}
           </span>
-        </h1>
-        <p style={{ color: darkMode ? '#777' : '#666', margin: 0, fontSize: '12px', fontWeight: '700' }}>
-          {stats.totalTasks > 0 ? (
-            <>You have <span style={{ color: '#007AFF' }}>{stats.totalTasks - stats.completedTasks} tasks</span> remaining.</>
-          ) : (
-            "Nothing pending for today."
-          )}
-        </p>
+        </div>
       </header>
 
       {/* 2. PROGRESS CARD */}
@@ -133,7 +226,7 @@ const Home = ({ theme, darkMode, userId }) => {
               <span style={{ fontSize: '9px', fontWeight: '800', color: darkMode ? '#777' : '#555', letterSpacing: '1px' }}>STATUS</span>
             </div>
             <h2 style={{ fontSize: '24px', fontWeight: '900', margin: 0, color: theme?.text }}>
-               {stats.totalTasks > 0 ? `${stats.percentage}%` : "ALL CLEAR"}
+                {stats.totalTasks > 0 ? `${stats.percentage}%` : "ALL CLEAR"}
             </h2>
             <p style={{ color: darkMode ? '#777' : '#555', fontWeight: '700', fontSize: '11px', margin: 0 }}>
               {stats.totalTasks > 0 ? "Completion Rate" : "Everything is done"}
@@ -179,7 +272,7 @@ const Home = ({ theme, darkMode, userId }) => {
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '14px', fontWeight: '800', color: theme.text, marginBottom: '2px' }}>{item.courses?.name || 'Unknown Subject'}</div>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#777', fontWeight: '700' }}><Clock size={10} color="#007AFF" /> {item.start_time?.slice(0, 5)}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#777', fontWeight: '700' }}><Clock size={10} color="#007AFF" /> {formatTime(item.start_time)}</div>
                   {item.location && <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#777', fontWeight: '700' }}><MapPin size={10} color="#FF2D55" /> {item.location}</div>}
                 </div>
               </div>
@@ -191,6 +284,14 @@ const Home = ({ theme, darkMode, userId }) => {
           </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes pulseGreen {
+          0% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.3); opacity: 0.5; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 };
