@@ -1,76 +1,76 @@
-/* 🛠️ RESET & SIMULATOR LOGIC */
+/* 🛠️ RESET & NATIVE FEEL */
 :root {
   font-family: 'Inter', -apple-system, system-ui, sans-serif;
+  --bg-black: #000000;
+  --card-dark: #111111;
+  --border-dim: #1a1a1a;
 }
 
-/* 1. NATIVE APP FEEL FIXES */
 * {
-  /* Remove the gray/blue tap highlight on mobile */
   -webkit-tap-highlight-color: transparent;
-  /* Prevent "Save Image" or context menu on long-press */
   -webkit-touch-callout: none;
   box-sizing: border-box;
 }
 
-/* Disable text selection globally to prevent accidental highlighting */
+/* 1. CLEANER BODY LOGIC */
 body, html {
   margin: 0;
   padding: 0;
-  background-color: #000000; /* Deep black workspace */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100dvh; /* Dynamic height for mobile browsers */
-  width: 100vw;
-  overflow: hidden;
+  background-color: var(--bg-black);
+  height: 100%; 
+  width: 100%;
+  overflow: hidden; /* Prevents the whole "page" from bouncing */
   
-  /* Disable selection */
+  /* Disable selection for that App feel */
   -webkit-user-select: none;
-  -ms-user-select: none;
   user-select: none;
 }
 
-/* Re-enable selection for inputs and textareas so user can still type */
+/* Allow typing in inputs */
 input, textarea, [contenteditable="true"] {
   -webkit-user-select: text;
   user-select: text;
 }
 
-/* THE OUTER SHELL */
+/* 2. THE OUTER WORKSPACE */
 .app-shell {
   width: 100%;
-  height: 100%;
+  height: 100dvh; /* Dynamic height for mobile browsers */
   display: flex;
   justify-content: center;
   align-items: center;
-  background-color: #000000;
+  background-color: var(--bg-black);
 }
 
-/* THE FLOATING PHONE CONTAINER */
+/* 3. THE SMART CONTAINER */
 .mobile-container {
   width: 100%;
-  max-width: 430px; /* iPhone Pro Max width */
-  height: 100dvh;   /* Fills height on mobile, stays centered on desktop */
-  max-height: 932px; 
+  max-width: 430px; 
+  height: 100%; 
   position: relative;
   display: flex;
-  flex-direction: column; /* Stack: Header -> Main -> Nav */
+  flex-direction: column;
+  background-color: var(--bg-black);
   overflow: hidden;
-  box-shadow: 0 0 60px rgba(0,0,0,0.8);
-  border-left: 1px solid #1a1a1a;
-  border-right: 1px solid #1a1a1a;
+  
+  /* Only show borders/shadow on Desktop */
+  @media (min-width: 431px) {
+    border-left: 1px solid var(--border-dim);
+    border-right: 1px solid var(--border-dim);
+    box-shadow: 0 0 60px rgba(0,0,0,0.5);
+  }
 }
 
-/* MAIN CONTENT SCROLL AREA */
+/* 4. MAIN CONTENT AREA */
 .main-content {
   flex: 1; 
   overflow-y: auto;
   overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
-  padding-bottom: 20px; 
+  /* Use block for natural scrolling */
+  display: block; 
+  padding-bottom: 100px; /* Ensures content doesn't get hidden behind Nav */
   
-  /* Hide scrollbars */
+  /* Hide scrollbars but keep functionality */
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
@@ -79,49 +79,37 @@ input, textarea, [contenteditable="true"] {
   display: none;
 }
 
-/* BOTTOM NAV WRAPPER */
+/* 5. NAV WRAPPER (Auto-Height) */
 .nav-wrapper {
   width: 100%;
-  height: 80px; 
   flex-shrink: 0; 
   z-index: 1000;
-  padding-bottom: env(safe-area-inset-bottom); /* iOS Home Bar support */
+  /* Safe area handled in JSX */
 }
 
-/* 📱 SHARED UI COMPONENTS */
+/* 📱 SHARED UI */
 .page-title {
-  font-size: 18px !important;
+  font-size: 22px !important;
   font-weight: 900;
-  letter-spacing: -0.5px;
-  text-transform: uppercase;
+  letter-spacing: -1px;
 }
 
-/* ⚡ HAPTIC FEEDBACK & ACTIVE STATES */
-/* Apply this to any button, card, or clickable element */
-button, 
-.stat-card, 
-.profile-btn, 
-.nav-item, 
-.task-card {
-  transition: transform 0.1s ease, opacity 0.1s ease;
+/* ⚡ TACTILE FEEDBACK */
+button, .stat-card, .task-card {
+  transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
 }
 
-/* Shrink effect when pressed */
-button:active, 
-.stat-card:active, 
-.profile-btn:active, 
-.nav-item:active {
-  transform: scale(0.96); 
-  opacity: 0.8;
+button:active, .stat-card:active {
+  transform: scale(0.96);
 }
 
-/* Animations */
+/* 🎬 SMOOTH TRANSITIONS */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-.home-wrapper, .tasks-wrapper {
-  animation: fadeIn 0.4s ease-out;
+.home-wrapper, .tasks-wrapper, .profile-wrapper {
+  animation: fadeIn 0.3s ease-out;
 }

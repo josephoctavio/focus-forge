@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Loader2, Home, X, Edit3, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Loader2, Home, X, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
 const BASE_URL = "https://hcdgxxcjmamrlojhshxa.supabase.co/storage/v1/object/public/avatars/";
@@ -19,34 +19,27 @@ const AVATAR_OPTIONS = [
   { id: 'av12', url: `${BASE_URL}av12.png` },
 ];
 
-const EditProfile = ({ onBack, theme }) => {
+const EditProfile = ({ onBack, theme, profileData, refreshData }) => {
   const [loading, setLoading] = useState(false);
   const [showTray, setShowTray] = useState(false);
   const [isClosing, setIsClosing] = useState(false); 
-  const [profile, setProfile] = useState({ full_name: '', matric_no: '', avatar_id: 'av1' });
+  const [profile, setProfile] = useState({ 
+    full_name: profileData?.full_name || '', 
+    matric_no: profileData?.matric_no || '', 
+    avatar_id: profileData?.avatar_id || 'av1' 
+  });
   const [toast, setToast] = useState({ show: false, message: '' });
 
-  const colors = {
-    text: theme?.text || '#fff',
-    card: theme?.card || '#1c1c1e',
-    bg: theme?.bg || '#000',
-    border: theme?.border || '#2c2c2e',
-    accent: '#007AFF'
-  };
-
-  useEffect(() => { getProfile(); }, []);
-
-  async function getProfile() {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      let { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-      if (data) setProfile({ 
-        full_name: data.full_name || '', 
-        matric_no: data.matric_no || '',
-        avatar_id: data.avatar_id || 'av1'
+  // Sync state if profileData changes
+  useEffect(() => {
+    if (profileData) {
+      setProfile({
+        full_name: profileData.full_name || '',
+        matric_no: profileData.matric_no || '',
+        avatar_id: profileData.avatar_id || 'av1'
       });
     }
-  }
+  }, [profileData]);
 
   const closeTray = () => {
     setIsClosing(true);
@@ -61,51 +54,72 @@ const EditProfile = ({ onBack, theme }) => {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      await supabase.from('profiles').upsert({
+      const { error } = await supabase.from('profiles').upsert({
         id: user.id,
         full_name: profile.full_name,
         matric_no: profile.matric_no,
         avatar_id: profile.avatar_id,
         updated_at: new Date(),
       });
-      setToast({ show: true, message: 'Identity Synced!' });
-      setTimeout(() => { window.location.href = '/'; }, 1200);
-    } catch (e) { setLoading(false); }
+
+      if (!error) {
+        setToast({ show: true, message: 'IDENTITY SYNCED' });
+        await refreshData(); // Tell App.jsx to fetch the new name/avatar
+        setTimeout(() => {
+          setToast({ show: false, message: '' });
+          onBack(); // Smooth transition back to Profile
+        }, 1500);
+      }
+    } catch (e) { 
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const currentAvatar = AVATAR_OPTIONS.find(a => a.id === profile.avatar_id) || AVATAR_OPTIONS[0];
 
   return (
-    <div style={{ padding: '20px', color: colors.text, backgroundColor: colors.bg, minHeight: '100vh' }}>
+    <div style={{ padding: '24px', color: theme.text, backgroundColor: theme.bg, minHeight: '100vh', animation: 'fadeIn 0.3s ease' }}>
       
-      {toast.show && <div style={toastStyle}>{toast.message}</div>}
+      {/* TOAST */}
+      {toast.show && (
+        <div style={{ 
+          position: 'fixed', top: '40px', left: '50%', transform: 'translateX(-50%)', 
+          backgroundColor: '#34C759', color: '#fff', padding: '14px 28px', 
+          borderRadius: '50px', zIndex: 10000, fontWeight: '900', fontSize: '12px',
+          boxShadow: '0 10px 30px rgba(52, 199, 89, 0.3)', display: 'flex', alignItems: 'center', gap: '8px'
+        }}>
+          <CheckCircle2 size={16} /> {toast.message}
+        </div>
+      )}
 
-      {/* HEADER SECTION - Now perfectly centered */}
-      <div style={{ display: 'flex', alignItems: 'center', position: 'relative', height: '40px', marginBottom: '40px' }}>
-        <button className="action-btn" onClick={onBack} style={{ position: 'relative', zIndex: 10, background: 'transparent', border: 'none', color: colors.accent, fontWeight: '900', display: 'flex', alignItems: 'center', gap: '5px', padding: 0 }}>
-            <ArrowLeft size={20} /> <span style={{fontSize: '11px'}}>BACK</span>
+      {/* HEADER */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '40px' }}>
+        <button onClick={onBack} style={{ background: theme.card, border: `1px solid ${theme.border}`, padding: '10px', borderRadius: '14px', color: theme.text, display: 'flex' }}>
+          <ArrowLeft size={20} />
         </button>
-        <h2 style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', margin: 0, fontSize: '13px', fontWeight: '900', letterSpacing: '1.5px', opacity: 0.6, whiteSpace: 'nowrap' }}>
-          EDIT PROFILE
-        </h2>
+        <h2 style={{ fontSize: '13px', fontWeight: '900', letterSpacing: '1.5px', opacity: 0.5 }}>EDIT IDENTITY</h2>
+        <div style={{ width: '40px' }} /> {/* Spacer for centering */}
       </div>
 
       {/* AVATAR DISPLAY */}
       <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-        <div style={{ position: 'relative', display: 'inline-block', cursor: 'pointer' }} onClick={() => setShowTray(true)}>
+        <div style={{ position: 'relative', display: 'inline-block' }} onClick={() => setShowTray(true)}>
           <div style={{ 
-            width: '110px', height: '110px', borderRadius: '40px', 
-            backgroundColor: colors.card, border: `3px solid ${colors.accent}`,
+            width: '120px', height: '120px', borderRadius: '44px', 
+            backgroundColor: theme.card, border: `3px solid ${theme.accent}`,
             overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: `0 15px 35px rgba(0,122,255,0.2)`
+            boxShadow: `0 20px 40px rgba(0,122,255,0.15)`, cursor: 'pointer'
           }}>
             <img src={currentAvatar.url} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <div style={{ 
-            position: 'absolute', bottom: '-2px', right: '-2px', backgroundColor: colors.accent, 
-            padding: '8px', borderRadius: '14px', border: `3px solid ${colors.bg}`, color: 'white'
+            position: 'absolute', bottom: '-5px', right: '-5px', backgroundColor: theme.accent, 
+            padding: '10px', borderRadius: '16px', border: `4px solid ${theme.bg}`, color: 'white',
+            boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
           }}>
-            <Edit3 size={14} />
+            <Edit3 size={16} />
           </div>
         </div>
       </div>
@@ -114,45 +128,61 @@ const EditProfile = ({ onBack, theme }) => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', marginBottom: '30px' }}>
         <div style={inputGroup}>
           <label style={labelStyle}>DISPLAY NAME</label>
-          <input value={profile.full_name} onChange={e => setProfile({...profile, full_name: e.target.value})} style={inputStyle(colors)} placeholder="Your Name" />
+          <input 
+            value={profile.full_name} 
+            onChange={e => setProfile({...profile, full_name: e.target.value})} 
+            style={inputStyle(theme)} 
+            placeholder="What should we call you?" 
+          />
         </div>
         <div style={inputGroup}>
           <label style={labelStyle}>MATRIC NUMBER</label>
-          <input value={profile.matric_no} onChange={e => setProfile({...profile, matric_no: e.target.value})} style={inputStyle(colors)} placeholder="U20XX/..." />
+          <input 
+            value={profile.matric_no} 
+            onChange={e => setProfile({...profile, matric_no: e.target.value})} 
+            style={inputStyle(theme)} 
+            placeholder="U20XX/0000" 
+          />
         </div>
       </div>
 
-      {/* INFO TEXT - Now a clear bulleted list */}
-      <div style={{ backgroundColor: 'rgba(0,122,255,0.05)', padding: '16px 20px', borderRadius: '18px', border: `1px solid rgba(0,122,255,0.1)`, display: 'flex', gap: '12px', marginBottom: '25px' }}>
-          <AlertCircle size={18} color={colors.accent} style={{ flexShrink: 0, marginTop: '2px' }} />
-          <ul style={{ margin: 0, paddingLeft: '14px', fontSize: '11px', lineHeight: '1.6', opacity: 0.7, fontWeight: '600', color: colors.text }}>
-            <li style={{ marginBottom: '8px' }}>The application will refresh after saving to sync your new character and identity across all schedules.</li>
-            <li>Your Matric Number is solely for local identification. We do not use it for any external purpose.</li>
-          </ul>
+      {/* INFO BOX */}
+      <div style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '24px', border: `1px solid ${theme.border}`, display: 'flex', gap: '14px', marginBottom: '35px' }}>
+          <AlertCircle size={20} color={theme.accent} style={{ flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <p style={{ margin: 0, fontSize: '11px', lineHeight: '1.5', opacity: 0.7, fontWeight: '600', color: theme.text }}>
+              Changing your display name will update your greeting on the Home dashboard instantly.
+            </p>
+            <p style={{ margin: 0, fontSize: '11px', lineHeight: '1.5', opacity: 0.4, fontWeight: '500', color: theme.text }}>
+              Matric numbers are used only for local ID verification.
+            </p>
+          </div>
       </div>
 
-      <button className="action-btn" onClick={handleSave} disabled={loading} style={saveBtn(colors)}>
-        {loading ? <Loader2 className="spin" /> : <Home size={18} />}
-        {loading ? 'SYNCING...' : 'SAVE & RETURN HOME'}
+      <button onClick={handleSave} disabled={loading} style={saveBtn(theme)}>
+        {loading ? <Loader2 className="spin" size={20} /> : <Home size={20} />}
+        <span style={{ letterSpacing: '0.5px' }}>{loading ? 'SYNCING...' : 'SAVE & RETURN'}</span>
       </button>
 
-      {/* THE SLIDE-UP TRAY */}
+      {/* AVATAR TRAY */}
       {showTray && (
         <div 
-          style={{...overlayStyle, opacity: isClosing ? 0 : 1}} 
+          style={{...overlayStyle, opacity: isClosing ? 0 : 1, transition: 'opacity 0.3s ease'}} 
           onClick={closeTray}
         >
           <div 
             style={{ 
               ...trayStyle, 
-              backgroundColor: colors.card, 
+              backgroundColor: theme.card, 
+              border: `1px solid ${theme.border}`,
               animation: isClosing ? 'slideDown 0.3s forwards' : 'slideUp 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)' 
             }} 
             onClick={e => e.stopPropagation()}
           >
+            <div style={{ width: '40px', height: '5px', backgroundColor: theme.border, borderRadius: '10px', margin: '0 auto 20px' }} />
             <div style={trayHeader}>
-              <span style={{ fontWeight: '900', fontSize: '12px', letterSpacing: '1px' }}>PICK A CHARACTER</span>
-              <button className="action-btn" onClick={closeTray} style={closeBtn}><X size={20} /></button>
+              <span style={{ fontWeight: '900', fontSize: '14px', letterSpacing: '1px' }}>SELECT CHARACTER</span>
+              <button onClick={closeTray} style={{ background: theme.bg, border: 'none', color: theme.text, padding: '8px', borderRadius: '12px', display: 'flex' }}><X size={20} /></button>
             </div>
             
             <div className="hide-scrollbar" style={scrollArea}>
@@ -160,24 +190,15 @@ const EditProfile = ({ onBack, theme }) => {
                 {AVATAR_OPTIONS.map(option => (
                   <button 
                     key={option.id}
-                    className="action-btn"
                     onClick={() => { setProfile({...profile, avatar_id: option.id}); closeTray(); }}
                     style={{
                       ...avatarCircle,
-                      borderColor: profile.avatar_id === option.id ? colors.accent : colors.border,
-                      backgroundColor: profile.avatar_id === option.id ? 'rgba(0,122,255,0.1)' : 'transparent'
+                      borderColor: profile.avatar_id === option.id ? theme.accent : theme.border,
+                      backgroundColor: profile.avatar_id === option.id ? `${theme.accent}11` : theme.bg,
+                      transform: profile.avatar_id === option.id ? 'scale(1.05)' : 'scale(1)'
                     }}
                   >
-                    <img 
-                      src={option.url} 
-                      alt="option" 
-                      style={{ 
-                        width: '100%', 
-                        height: '100%', 
-                        objectFit: 'cover', 
-                        display: 'block' 
-                      }} 
-                    />
+                    <img src={option.url} alt="option" style={{ width: '80%', height: '80%', objectFit: 'contain' }} />
                   </button>
                 ))}
               </div>
@@ -191,32 +212,39 @@ const EditProfile = ({ onBack, theme }) => {
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes slideDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
-        
-        /* Clean scrollbar & responsive clicks */
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        .action-btn { cursor: pointer; transition: transform 0.1s ease; }
-        .action-btn:active { transform: scale(0.95); }
       `}</style>
     </div>
   );
 };
 
-/* Extracted Styles */
-const inputGroup = { display: 'flex', flexDirection: 'column', gap: '8px' };
-const labelStyle = { fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1px', marginLeft: '5px' };
-const inputStyle = (c) => ({ width: '100%', padding: '18px', backgroundColor: c.card, border: `1px solid ${c.border}`, borderRadius: '20px', color: c.text, fontWeight: '600', outline: 'none' });
-const saveBtn = (c) => ({ width: '100%', backgroundColor: c.accent, color: 'white', padding: '18px', borderRadius: '20px', border: 'none', fontWeight: '900', fontSize: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' });
-const toastStyle = { position: 'fixed', top: '30px', left: '50%', transform: 'translateX(-50%)', backgroundColor: '#34C759', color: '#fff', padding: '12px 25px', borderRadius: '50px', zIndex: 10000, fontWeight: '900', fontSize: '13px' };
-const overlayStyle = { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', transition: 'opacity 0.3s ease' };
-const trayStyle = { width: '100%', borderTopLeftRadius: '35px', borderTopRightRadius: '35px', padding: '25px', paddingBottom: '40px' };
-const trayHeader = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', padding: '0 5px' };
-
-/* Transparent X button with flex centering to prevent white boxes */
-const closeBtn = { background: 'transparent', border: 'none', color: 'inherit', opacity: 0.4, padding: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', outline: 'none' };
-
-const scrollArea = { maxHeight: '350px', overflowY: 'auto', paddingRight: '4px', WebkitOverflowScrolling: 'touch' };
-const iconGrid = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', paddingBottom: '60px' };
-const avatarCircle = { width: '100%', aspectRatio: '1 / 1', borderRadius: '22px', border: '2px solid', overflow: 'hidden', transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', padding: 0 };
+/* Styles */
+const inputGroup = { display: 'flex', flexDirection: 'column', gap: '10px' };
+const labelStyle = { fontSize: '10px', fontWeight: '900', opacity: 0.4, letterSpacing: '1.5px', marginLeft: '4px' };
+const inputStyle = (theme) => ({ 
+  width: '100%', padding: '18px', backgroundColor: theme.card, 
+  border: `1px solid ${theme.border}`, borderRadius: '20px', 
+  color: theme.text, fontWeight: '700', outline: 'none', fontSize: '15px',
+  transition: 'border-color 0.2s', boxSizing: 'border-box'
+});
+const saveBtn = (theme) => ({ 
+  width: '100%', backgroundColor: theme.accent, color: 'white', 
+  padding: '20px', borderRadius: '22px', border: 'none', 
+  fontWeight: '900', fontSize: '14px', display: 'flex', 
+  alignItems: 'center', justifyContent: 'center', gap: '12px',
+  boxShadow: `0 10px 25px ${theme.accent}33`, cursor: 'pointer'
+});
+const overlayStyle = { position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(10px)', zIndex: 1000, display: 'flex', alignItems: 'flex-end' };
+const trayStyle = { width: '100%', borderTopLeftRadius: '40px', borderTopRightRadius: '40px', padding: '24px', paddingBottom: '50px', boxSizing: 'border-box' };
+const trayHeader = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' };
+const scrollArea = { maxHeight: '400px', overflowY: 'auto', WebkitOverflowScrolling: 'touch' };
+const iconGrid = { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' };
+const avatarCircle = { 
+  aspectRatio: '1/1', borderRadius: '24px', border: '2px solid', 
+  transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', 
+  justifyContent: 'center', cursor: 'pointer', padding: 0, outline: 'none'
+};
 
 export default EditProfile;

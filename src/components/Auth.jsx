@@ -1,8 +1,17 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import { Mail, Lock, User, Eye, EyeOff, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { 
+  Mail, 
+  Lock, 
+  User, 
+  Eye, 
+  EyeOff, 
+  ArrowLeft, 
+  GraduationCap, 
+  AlertCircle,
+  X 
+} from 'lucide-react';
 
-// Added forceRecovery prop from App.jsx
 export default function Auth({ forceRecovery = false }) {
   const [loading, setLoading] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
@@ -10,177 +19,284 @@ export default function Auth({ forceRecovery = false }) {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(forceRecovery); 
   const [showPassword, setShowPassword] = useState(false);
   
+  const [msg, setMsg] = useState({ text: '', type: '' });
+  const [errorShake, setErrorShake] = useState(false);
+  
+  const [showLegal, setShowLegal] = useState(false);
+  const [legalType, setLegalType] = useState('terms');
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
 
+  const theme = {
+    bg: '#000000',
+    card: '#111111',
+    border: '#222222',
+    accent: '#007AFF',
+    text: '#FFFFFF',
+    danger: '#FF3B30',
+    success: '#34C759'
+  };
+
   useEffect(() => {
-    // Rely on the prop from App.jsx first
     if (forceRecovery) {
         setIsUpdatingPassword(true);
         return;
     }
-
-    if (window.location.hash.includes('type=recovery')) {
-      setIsUpdatingPassword(true);
-    }
-
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery')) setIsUpdatingPassword(true);
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setIsUpdatingPassword(true);
-      }
+      if (event === "PASSWORD_RECOVERY") setIsUpdatingPassword(true);
     });
-
     return () => subscription.unsubscribe();
   }, [forceRecovery]);
 
+  const showStatus = (text, type = 'error') => {
+    setMsg({ text, type });
+    if (type === 'error') {
+        setErrorShake(true);
+        setTimeout(() => setErrorShake(false), 500);
+    }
+    setLoading(false);
+  };
+
   const handleAuth = async (e) => {
     e.preventDefault();
+    setMsg({ text: '', type: '' }); 
     setLoading(true);
+
+    if (!resetMode && password.length < 6) return showStatus("Password must be at least 6 characters.");
+    if (isSignUp && !fullName) return showStatus("Please enter your full name.");
 
     try {
       if (isUpdatingPassword) {
-        // --- Updated Password Update Block ---
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
-        
-        alert('Password saved! Logging you in...');
-
-        // 1. Clear the recovery states
-        setIsUpdatingPassword(false);
-        setPassword('');
-        
-        // 2. IMPORTANT: Hard refresh the session to sync App.jsx
-        await supabase.auth.getSession(); 
-        
-        // 3. Clear the URL and force a reload to "clean" the app state
         window.location.hash = '';
-        window.location.reload(); // This is the "magic" that prevents the hang
-        // -------------------------------------
-      } else if (resetMode) {
+        window.location.reload(); 
+      } 
+      else if (resetMode) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin, 
         });
         if (error) throw error;
-        alert('Check your email for the reset link!');
-        setResetMode(false);
-      } else if (isSignUp) {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        showStatus("Recovery link sent! Check your inbox.", "success");
+      } 
+      else if (isSignUp) {
+        const { data, error } = await supabase.auth.signUp({ 
+            email, password,
+            options: { data: { full_name: fullName } } 
+        });
         if (error) throw error;
         if (data.user) {
-          await supabase.from('profiles').insert([{ id: data.user.id, full_name: fullName }]);
+          await supabase.from('profiles').insert([{ id: data.user.id, full_name: fullName, dark_mode: true }]);
         }
-        alert('Account created!');
-      } else {
+        showStatus("Account created! Please verify your email.", "success");
+      } 
+      else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-    } catch (error) {
-      alert(error.message);
+    } catch (err) {
+      showStatus(err.message);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-black text-white p-6 font-sans">
-      <div className="w-full max-w-md space-y-6 bg-zinc-900/50 p-8 rounded-3xl border border-zinc-800 backdrop-blur-sm">
-        
-        <div className="text-center space-y-2">
-          <div className="flex justify-center mb-4">
-             <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30">
-                < ShieldCheck className="text-blue-500" size={32} />
-             </div>
+    <div style={{ backgroundColor: theme.bg, color: theme.text, minHeight: '100vh', display: 'flex', flexDirection: 'column', padding: '24px', position: 'relative' }}>
+      
+      {/* BRANDING (TOP LEFT) */}
+      <div style={{ paddingTop: '10px', width: '100%' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: '900', letterSpacing: '-1.2px', margin: 0 }}>StudyFlow</h1>
+        <p style={{ opacity: 0.4, fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '2px', marginTop: '2px' }}>
+            By Deltryn Studios
+        </p>
+      </div>
+
+      {/* CENTERED AUTH CARD */}
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className={errorShake ? 'shake' : ''} style={{ 
+          width: '100%', maxWidth: '400px', backgroundColor: theme.card, 
+          padding: '32px', borderRadius: '32px', border: `1px solid ${theme.border}`,
+          boxShadow: '0 25px 70px rgba(0,0,0,0.7)', textAlign: 'center'
+        }}>
+          
+          {/* ICON TOP OF FORM */}
+          <div style={{ 
+              width: '56px', height: '56px', backgroundColor: `${theme.accent}15`, 
+              borderRadius: '16px', border: `1px solid ${theme.accent}30`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px auto'
+          }}>
+            <GraduationCap size={28} color={theme.accent} />
           </div>
-          <h2 className="text-3xl font-extrabold tracking-tight">
-            {isUpdatingPassword ? 'Set New Password' : resetMode ? 'Reset Password' : isSignUp ? 'Join StudyFlow' : 'Welcome Back'}
+
+          <h2 style={{ fontSize: '20px', fontWeight: '900', marginBottom: '28px', letterSpacing: '-0.5px' }}>
+            {isUpdatingPassword ? 'New Password' : resetMode ? 'Recover Access' : isSignUp ? 'Join the Flow' : 'Sign In'}
           </h2>
-          <p className="text-zinc-500 text-sm">
-            {isUpdatingPassword ? 'Type your new password below' : resetMode ? 'Check your email after sending' : 'Your Academic Command Center'}
-          </p>
-        </div>
 
-        <form onSubmit={handleAuth} className="space-y-4">
-          {(resetMode || (isUpdatingPassword && !forceRecovery)) && (
-            <button 
-              type="button" 
-              onClick={() => { setResetMode(false); setIsUpdatingPassword(false); }}
-              className="flex items-center text-xs text-blue-500 gap-1 hover:underline mb-2"
-            >
-              <ArrowLeft size={14} /> Back to login
-            </button>
-          )}
-
-          {isSignUp && !resetMode && !isUpdatingPassword && (
-            <div className="relative">
-              <User className="absolute left-3 top-3.5 text-zinc-600" size={18} />
-              <input
-                className="w-full p-3.5 pl-11 bg-black/40 border border-zinc-800 rounded-xl outline-none"
-                placeholder="Full Name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-              />
-            </div>
-          )}
-
-          {!isUpdatingPassword && (
-            <div className="relative">
-              <Mail className="absolute left-3 top-3.5 text-zinc-600" size={18} />
-              <input
-                className="w-full p-3.5 pl-11 bg-black/40 border border-zinc-800 rounded-xl outline-none"
-                type="email"
-                placeholder="Email Address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-          )}
-
-          {!resetMode && (
-            <div className="relative">
-              <Lock className="absolute left-3 top-3.5 text-zinc-600" size={18} />
-              <input
-                className="w-full p-3.5 pl-11 pr-11 bg-black/40 border border-zinc-800 rounded-xl outline-none"
-                type={showPassword ? "text" : "password"}
-                placeholder={isUpdatingPassword ? "Enter New Password" : "Password"}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+          <form onSubmit={handleAuth} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
+            
+            {(resetMode || (isUpdatingPassword && !forceRecovery)) && (
               <button 
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3.5 text-zinc-600 hover:text-zinc-400"
+                type="button" 
+                onClick={() => { setResetMode(false); setIsUpdatingPassword(false); setMsg({text:'', type:''}); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'none', border: 'none', color: theme.accent, fontSize: '11px', fontWeight: '800', padding: 0, cursor: 'pointer', marginBottom: '8px' }}
               >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                <ArrowLeft size={14} /> BACK TO LOGIN
               </button>
-            </div>
-          )}
+            )}
 
-          <button
-            disabled={loading}
-            className="w-full py-4 bg-white text-black font-bold rounded-xl hover:bg-zinc-200 transition-all"
-          >
-            {loading ? 'Processing...' : isUpdatingPassword ? 'Save New Password' : resetMode ? 'Send Reset Link' : isSignUp ? 'Create Account' : 'Sign In'}
-          </button>
-        </form>
+            {isSignUp && !resetMode && !isUpdatingPassword && (
+              <div style={inputContainerStyle}>
+                <User style={iconStyle} size={18} />
+                <input style={{...inputStyle, borderColor: theme.border}} placeholder="Full Name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              </div>
+            )}
 
-        <div className="flex flex-col gap-3 pt-2">
-          {!resetMode && !isSignUp && !isUpdatingPassword && (
-            <button onClick={() => setResetMode(true)} className="text-xs text-zinc-500 hover:text-blue-500">
-              Forgot your password?
+            {!isUpdatingPassword && (
+              <div style={inputContainerStyle}>
+                <Mail style={iconStyle} size={18} />
+                <input style={{...inputStyle, borderColor: theme.border}} type="email" placeholder="Email Address" value={email} onChange={(e) => setEmail(e.target.value)} />
+              </div>
+            )}
+
+            {!resetMode && (
+              <div style={inputContainerStyle}>
+                <Lock style={iconStyle} size={18} />
+                <input 
+                  style={{...inputStyle, borderColor: theme.border}} 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="Password" 
+                  value={password} 
+                  onChange={(e) => setPassword(e.target.value)} 
+                />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={eyeButtonStyle}>
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+            )}
+
+            {msg.text && (
+              <div style={{ 
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '14px', borderRadius: '14px', 
+                backgroundColor: msg.type === 'success' ? `${theme.success}10` : `${theme.danger}10`, 
+                border: `1px solid ${msg.type === 'success' ? `${theme.success}20` : `${theme.danger}20`}` 
+              }}>
+                <AlertCircle size={14} color={msg.type === 'success' ? theme.success : theme.danger} />
+                <p style={{ color: msg.type === 'success' ? theme.success : theme.danger, fontSize: '10px', fontWeight: '800', margin: 0 }}>
+                  {msg.text.toUpperCase()}
+                </p>
+              </div>
+            )}
+
+            <button disabled={loading} style={submitButtonStyle(theme)}>
+              {loading ? 'PROCESSING...' : isUpdatingPassword ? 'SAVE PASSWORD' : resetMode ? 'SEND LINK' : isSignUp ? 'CREATE ACCOUNT' : 'CONTINUE'}
             </button>
-          )}
+          </form>
 
-          {!isUpdatingPassword && (
-            <button onClick={() => { setIsSignUp(!isSignUp); setResetMode(false); }} className="text-sm text-zinc-400">
-              {isSignUp ? <span>Already have an account? <span className="text-white font-semibold">Login</span></span> : <span>Don't have an account? <span className="text-white font-semibold">Sign Up</span></span>}
-            </button>
-          )}
+          <div style={{ marginTop: '24px' }}>
+            {!isUpdatingPassword && (
+              <button onClick={() => { setIsSignUp(!isSignUp); setResetMode(false); setMsg({text:'', type:''}); }} style={toggleButtonStyle}>
+                {isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up"}
+              </button>
+            )}
+            {!isSignUp && !resetMode && !isUpdatingPassword && (
+              <button onClick={() => setResetMode(true)} style={forgotButtonStyle(theme)}>
+                Forgot Password?
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* FOOTER */}
+      <div style={{ textAlign: 'center', paddingBottom: '20px', opacity: 0.4 }}>
+        <p style={{ fontSize: '10px', fontWeight: '700', lineHeight: '1.8' }}>
+          <span 
+            onClick={() => { setLegalType('terms'); setShowLegal(true); }} 
+            style={{ textDecoration: 'underline', cursor: 'pointer' }}
+          >Terms</span> • <span 
+            onClick={() => { setLegalType('privacy'); setShowLegal(true); }} 
+            style={{ textDecoration: 'underline', cursor: 'pointer' }}
+          >Privacy</span> • <a href="mailto:deltrynstudios@gmail.com" style={{ textDecoration: 'underline', color: 'inherit' }}>Support</a>
+        </p>
+      </div>
+
+      {/* SLIM SCROLLABLE LEGAL MODAL */}
+      {showLegal && (
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', backdropFilter: 'blur(6px)' }}>
+          <div style={{ backgroundColor: theme.card, width: '100%', maxWidth: '300px', borderRadius: '24px', border: `1px solid ${theme.border}`, display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+            
+            <div style={{ padding: '20px', borderBottom: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', fontWeight: '900', letterSpacing: '1px' }}>{legalType === 'terms' ? 'TERMS' : 'PRIVACY'}</span>
+                <button onClick={() => setShowLegal(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer' }}><X size={18}/></button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
+              <div style={{ fontSize: '12px', lineHeight: '1.7', opacity: 0.7, color: '#fff' }}>
+                {legalType === 'terms' ? (
+                  <>
+                    <p><b>1. Acceptance:</b> By using StudyFlow, you agree to these terms.</p>
+                    <p><b>2. Security:</b> You are responsible for your own password and account activity.</p>
+                    <p><b>3. Service:</b> Built by Deltryn Studios. Provided "as is" for academic assistance.</p>
+                    <p><b>4. Fair Use:</b> No automated scraping or malicious database access allowed.</p>
+                  </>
+                ) : (
+                  <>
+                    <p><b>1. Data:</b> Your data belongs to you. We only store what is needed to manage your schedule.</p>
+                    <p><b>2. Email:</b> Used only for login and recovery. No third-party spam.</p>
+                    <p><b>3. Storage:</b> Powered by Supabase. Your information is never sold.</p>
+                    <p><b>4. Control:</b> You can delete your account and all associated data at any time.</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div style={{ padding: '16px', borderTop: `1px solid ${theme.border}` }}>
+                <button 
+                  onClick={() => setShowLegal(false)}
+                  style={{ width: '100%', padding: '14px', borderRadius: '14px', backgroundColor: theme.text, color: theme.bg, fontWeight: '900', border: 'none', fontSize: '12px' }}
+                >
+                  DISMISS
+                </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .shake { animation: shake 0.4s ease-in-out; }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-6px); }
+          75% { transform: translateX(6px); }
+        }
+      `}</style>
     </div>
   );
 }
+
+const inputContainerStyle = { position: 'relative', display: 'flex', alignItems: 'center' };
+const iconStyle = { position: 'absolute', left: '16px', color: '#555' };
+
+// Fixed color: '#FFFFFF' ensures you can see white text on the black input field
+const inputStyle = { 
+  width: '100%', 
+  padding: '16px 16px 16px 48px', 
+  backgroundColor: '#000000', 
+  border: '1px solid', 
+  borderRadius: '16px', 
+  color: '#FFFFFF', 
+  fontSize: '14px', 
+  fontWeight: '600',
+  outline: 'none' 
+};
+
+const eyeButtonStyle = { position: 'absolute', right: '16px', background: 'none', border: 'none', color: '#555', cursor: 'pointer' };
+const submitButtonStyle = (theme) => ({ width: '100%', padding: '18px', borderRadius: '18px', border: 'none', backgroundColor: theme.text, color: theme.bg, fontWeight: '900', fontSize: '14px', cursor: 'pointer', marginTop: '10px' });
+const toggleButtonStyle = { background: 'none', border: 'none', color: '#666', fontSize: '12px', fontWeight: '700', cursor: 'pointer' };
+const forgotButtonStyle = (theme) => ({ background: 'none', border: 'none', color: theme.accent, fontSize: '11px', fontWeight: '800', cursor: 'pointer', display: 'block', margin: '12px auto 0 auto' });

@@ -1,21 +1,31 @@
 /* src/index.css */
+
 :root {
-  background-color: #121212; /* Dark workspace background */
+  /* This color is for the browser area OUTSIDE your phone container */
+  background-color: #000000; 
+  color-scheme: dark; /* Tells the browser to use dark scrollbars/inputs by default */
 }
 
 body {
   margin: 0;
   display: flex;
-  place-items: center;
+  justify-content: center; /* Centers your App Shell horizontally */
+  align-items: center;     /* Centers your App Shell vertically */
   min-width: 320px;
-  min-height: 100vh;
-  justify-content: center; /* Centers the 430px phone container */
+  height: 100dvh;          /* Better than 100vh for mobile browser bars */
   background-color: #000000;
-  overflow: hidden; /* Prevents the whole browser from scrolling */
+  overflow: hidden;        /* Keeps the 'Elastic' bounce inside the app, not the page */
+  
+  /* HIGH-END TEXT RENDERING */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 #root {
   width: 100%;
+  height: 100%;
   display: flex;
   justify-content: center;
+  align-items: center;
 }

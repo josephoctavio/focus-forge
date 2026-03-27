@@ -24,13 +24,17 @@ function App() {
   const [darkMode, setDarkMode] = useState(true); 
   const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
   
+  // Shared Data State
   const [assignments, setAssignments] = useState([]);
   const [courses, setCourses] = useState([]);
+  const [fullTimetable, setFullTimetable] = useState([]); 
+  const [userName, setUserName] = useState('');
+  const [profileData, setProfileData] = useState(null);
+  const [stats, setStats] = useState({ totalTasks: 0, completedTasks: 0, courses: 0, percentage: 0 });
   const [loading, setLoading] = useState(true);
 
   // --- AUTH LOGIC ---
   useEffect(() => {
-    // 1. HARD URL CHECK: Immediate interception for email recovery links
     const hash = window.location.hash;
     if (hash && hash.includes('type=recovery')) {
       setIsRecoveringPassword(true);
@@ -46,52 +50,34 @@ function App() {
 
     checkInitialAuth();
 
-    // 2. Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
+      if (event === "PASSWORD_RECOVERY") setIsRecoveringPassword(true); 
       
-      // Triggered by clicking the email link
-      if (event === "PASSWORD_RECOVERY") {
-        setIsRecoveringPassword(true); 
-      }
-      
-      // Triggered after successfully saving the new password
+      // Reset recovery state when the user successfully updates or logs out
       if (event === "USER_UPDATED") {
         setIsRecoveringPassword(false);
-        // Clean the URL hash to prevent re-triggering recovery mode
-        if (window.location.hash.includes('type=recovery')) {
-          window.history.replaceState(null, null, window.location.pathname);
-        }
       }
       
       if (event === "SIGNED_OUT") {
         setIsRecoveringPassword(false);
         setActiveTab('home'); 
       }
-
-      if (!isRecoveringPassword) {
-        setInitializing(false);
-      }
     });
 
     return () => subscription.unsubscribe();
-  }, [isRecoveringPassword]);
+  }, []);
 
-  // --- THEME & DATA FETCHING ---
+  // --- THEME & PREFERENCES ---
   const fetchUserPreferences = useCallback(async (userId) => {
     try {
-      const { data } = await supabase
-        .from('profiles')
-        .select('dark_mode')
-        .eq('id', userId)
-        .single();
-
-      if (data && data.dark_mode !== null) {
-        setDarkMode(data.dark_mode);
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      if (data) {
+        setProfileData(data);
+        if (data.dark_mode !== null) setDarkMode(data.dark_mode);
+        if (data.full_name) setUserName(data.full_name.split(' ')[0]);
       }
-    } catch (err) {
-      console.error("Error fetching preferences:", err);
-    }
+    } catch (err) { console.error("Error preferences:", err); }
   }, []);
 
   const toggleTheme = async () => {
@@ -102,20 +88,30 @@ function App() {
     }
   };
 
+  // --- GLOBAL DATA FETCHING ---
   const fetchAllData = useCallback(async () => {
-    // Don't pull data if there's no user or if we are in the middle of a password reset
     if (!session || isRecoveringPassword) return; 
     
-    setLoading(true);
     try {
-      const [tasksResponse, coursesResponse] = await Promise.all([
+      const [asgnRes, crsRes, schRes] = await Promise.all([
         supabase.from('assignments').select('*').order('created_at', { ascending: false }),
         supabase.from('courses').select('*'),
+        supabase.from('timetable').select('*, courses(name, color)').order('start_time', { ascending: true }),
         fetchUserPreferences(session.user.id)
       ]);
 
-      if (tasksResponse.data) setAssignments(tasksResponse.data);
-      if (coursesResponse.data) setCourses(coursesResponse.data);
+      const tasks = asgnRes.data || [];
+      const completed = tasks.filter(t => t.status === 'completed').length;
+      
+      setAssignments(tasks);
+      setCourses(crsRes.data || []);
+      setFullTimetable(schRes.data || []); 
+      setStats({
+        totalTasks: tasks.length,
+        completedTasks: completed,
+        courses: crsRes.data?.length || 0,
+        percentage: tasks.length > 0 ? Math.round((completed / tasks.length) * 100) : 0
+      });
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -125,9 +121,21 @@ function App() {
 
   useEffect(() => {
     fetchAllData();
+    // Real-time listeners to keep the app synced across devices
+    const channel = supabase.channel('global-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'timetable' }, () => fetchAllData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchAllData())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [fetchAllData]);
 
-  // --- THEME MEMO ---
+  // Derived state: filtered list for the home screen "Today" section
+  const todayClasses = useMemo(() => {
+    const todayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
+    return fullTimetable.filter(item => item.day_of_week === todayName);
+  }, [fullTimetable]);
+
   const theme = useMemo(() => ({
     bg: darkMode ? '#000000' : '#F5F5F7',
     text: darkMode ? '#FFFFFF' : '#000000',
@@ -137,48 +145,92 @@ function App() {
     danger: '#FF3B30'
   }), [darkMode]);
 
-  // --- RENDER LOGIC ---
+  // Auth/Initialization Guards
+  if (initializing) return <div style={{ backgroundColor: '#000', minHeight: '100vh' }} />;
+  if (isRecoveringPassword) return <Auth forceRecovery={true} />; 
+  if (!session) return <Auth />;
 
-  if (initializing) {
-    return <div style={{ backgroundColor: '#000', minHeight: '100vh' }} />;
-  }
-
-  // Gate 1: If user is resetting via email link, lock to Auth screen
-  if (isRecoveringPassword) {
-    return <Auth forceRecovery={true} />; 
-  }
-
-  // Gate 2: If no active session, show standard Login/Signup
-  if (!session) {
-    return <Auth />;
-  }
-
-  // Main Application
   return (
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`} style={{ backgroundColor: theme.bg, color: theme.text, minHeight: '100vh' }}>
       <div className="mobile-container">
-        
         <main className="main-content" style={{ paddingBottom: '80px' }}>
+          
+          {/* HOME TAB */}
           {activeTab === 'home' && (
             <>
               <Header title="STUDYFLOW" showThemeToggle={true} darkMode={darkMode} setDarkMode={toggleTheme} theme={theme} />
-              <Home userId={session?.user?.id} assignments={assignments} loading={loading} theme={theme} darkMode={darkMode} />
+              <Home 
+                userId={session?.user?.id} userName={userName} stats={stats}
+                todayClasses={todayClasses} loading={loading} theme={theme} 
+                darkMode={darkMode} refreshData={fetchAllData}
+              />
             </>
           )}
 
-          {activeTab === 'tasks' && <Tasks assignments={assignments} loading={loading} theme={theme} />}
-          {activeTab === 'profile' && <Profile setActiveTab={setActiveTab} theme={theme} />}
-          {activeTab === 'edit-profile' && <EditProfile onBack={() => setActiveTab('profile')} theme={theme} />}
-          {activeTab === 'course-manager' && <CourseManager setActiveTab={setActiveTab} theme={theme} />}
-          {activeTab === 'schedule-manager' && <ScheduleManager setActiveTab={setActiveTab} theme={theme} />}
-          {activeTab === 'config' && <Settings setActiveTab={setActiveTab} theme={theme} darkMode={darkMode} toggleTheme={toggleTheme} />}
-          {activeTab === 'privacy-security' && <PrivacySecurity onBack={() => setActiveTab('config')} theme={theme} />}
+          {/* TASKS TAB */}
+          {activeTab === 'tasks' && (
+            <Tasks 
+              assignments={assignments} courses={courses} loading={loading} 
+              theme={theme} darkMode={darkMode} refreshData={fetchAllData} 
+            />
+          )}
+
+          {/* PROFILE TAB */}
+          {activeTab === 'profile' && (
+            <Profile 
+              setActiveTab={setActiveTab} theme={theme} darkMode={darkMode} 
+              stats={stats} userName={userName} profileData={profileData} loading={loading} 
+            />
+          )}
+
+          {/* SUB-PAGES (TRIGGERED FROM PROFILE/HOME) */}
+          {activeTab === 'edit-profile' && (
+            <EditProfile 
+              onBack={() => setActiveTab('profile')} 
+              theme={theme} 
+              profileData={profileData} 
+              refreshData={fetchAllData} 
+            />
+          )}
+
+          {activeTab === 'course-manager' && (
+            <CourseManager 
+              setActiveTab={setActiveTab} theme={theme} darkMode={darkMode}
+              courses={courses} loading={loading} refreshData={fetchAllData} 
+            />
+          )}
+
+          {activeTab === 'schedule-manager' && (
+            <ScheduleManager 
+              setActiveTab={setActiveTab} theme={theme} darkMode={darkMode}
+              courses={courses} 
+              timetable={fullTimetable} 
+              loading={loading} refreshData={fetchAllData} 
+            />
+          )}
+
+          {/* SETTINGS BRANCH */}
+          {activeTab === 'config' && (
+            <Settings 
+              setActiveTab={setActiveTab} 
+              theme={theme} 
+              darkMode={darkMode} 
+              toggleTheme={toggleTheme} 
+            />
+          )}
+
+          {activeTab === 'privacy-security' && (
+            <PrivacySecurity 
+              onBack={() => setActiveTab('config')} 
+              theme={theme} 
+            />
+          )}
+          
         </main>
 
         <footer className="nav-wrapper" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: theme.card, borderTop: `1px solid ${theme.border}`, zIndex: 1000 }}>
           <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} />
         </footer>
-        
       </div>
     </div>
   );

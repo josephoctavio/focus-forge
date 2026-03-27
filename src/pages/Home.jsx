@@ -1,18 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient';
+import React, { useState, useEffect } from 'react';
 import { BookOpen, Clock, Zap, MapPin, CheckCircle2, RefreshCw, AlertCircle } from 'lucide-react';
 
-const Home = ({ theme, darkMode, userId }) => {
-  const [stats, setStats] = useState({ 
-    totalTasks: 0, 
-    completedTasks: 0, 
-    courses: 0,
-    percentage: 0 
-  });
-  const [todayClasses, setTodayClasses] = useState([]);
-  const [userName, setUserName] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [isError, setIsError] = useState(false);
+const Home = ({ theme, darkMode, userName, stats, todayClasses, loading, refreshData }) => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Helper: Format 24h to 12h (e.g., 14:30 -> 02:30 PM)
@@ -53,83 +42,12 @@ const Home = ({ theme, darkMode, userId }) => {
   else if (hour >= 17 && hour < 22) greeting = 'Good evening';
   else greeting = 'Late night study';
 
-  const todayName = new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date());
   const fullDateStr = new Intl.DateTimeFormat('en-US', { 
     weekday: 'long', month: 'short', day: 'numeric' 
   }).format(new Date()).toUpperCase();
 
-  const fetchDashboardData = useCallback(async () => {
-    setIsError(false);
-    setLoading(true);
-    try {
-      let activeId = userId;
-      if (!activeId) {
-        const { data: { user } } = await supabase.auth.getUser();
-        activeId = user?.id;
-      }
-
-      if (activeId) {
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('full_name')
-          .eq('id', activeId)
-          .single();
-        
-        if (profile?.full_name) {
-          const firstName = profile.full_name.split(' ')[0];
-          setUserName(firstName);
-        }
-      }
-
-      let assignmentsQuery = supabase.from('assignments').select('*', { count: 'exact', head: true });
-      let completedQuery = supabase.from('assignments').select('*', { count: 'exact', head: true }).eq('status', 'completed');
-      let coursesQuery = supabase.from('courses').select('*', { count: 'exact', head: true });
-      let scheduleQuery = supabase.from('timetable').select('*, courses(name, color)').eq('day_of_week', todayName).order('start_time', { ascending: true });
-
-      const [
-        { count: totalTasks, error: e1 },
-        { count: completedTasks, error: e2 },
-        { count: courseCount, error: e3 },
-        { data: schedule, error: e4 }
-      ] = await Promise.all([
-        assignmentsQuery,
-        completedQuery,
-        coursesQuery,
-        scheduleQuery
-      ]);
-
-      if (e1 || e2 || e3 || e4) throw new Error("Database Fetch Failed");
-
-      setStats({
-        totalTasks: totalTasks || 0,
-        completedTasks: completedTasks || 0,
-        courses: courseCount || 0,
-        percentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
-      });
-
-      if (schedule) setTodayClasses(schedule);
-
-    } catch (error) {
-      console.error("Dashboard fetch error:", error);
-      setIsError(true);
-    } finally {
-      setTimeout(() => setLoading(false), 600); 
-    }
-  }, [todayName, userId]);
-
-  useEffect(() => {
-    fetchDashboardData();
-    const channel = supabase.channel('dashboard-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments' }, () => fetchDashboardData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'timetable' }, () => fetchDashboardData())
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, () => fetchDashboardData())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [fetchDashboardData]);
-
-  // --- SKELETON LOADING UI ---
-  if (loading) {
+  // --- SKELETON LOADING UI (Only shows on initial App boot) ---
+  if (loading && stats.totalTasks === 0) {
     return (
       <div style={{ padding: '15px', backgroundColor: theme?.bg, minHeight: '100vh' }}>
         <div className="skeleton" style={{ width: '150px', height: '20px', borderRadius: '4px', marginBottom: '8px' }} />
@@ -139,8 +57,6 @@ const Home = ({ theme, darkMode, userId }) => {
           <div className="skeleton" style={{ height: '80px', borderRadius: '20px' }} />
           <div className="skeleton" style={{ height: '80px', borderRadius: '20px' }} />
         </div>
-        <div className="skeleton" style={{ width: '120px', height: '10px', borderRadius: '4px', marginBottom: '15px' }} />
-        <div className="skeleton" style={{ width: '100%', height: '70px', borderRadius: '20px', marginBottom: '10px' }} />
         <style>{`
           .skeleton { 
             background: ${darkMode ? '#1A1A1A' : '#E1E1E1'};
@@ -155,23 +71,6 @@ const Home = ({ theme, darkMode, userId }) => {
     );
   }
 
-  // --- ERROR STATE UI ---
-  if (isError) {
-    return (
-      <div style={{ padding: '40px 20px', backgroundColor: theme?.bg, minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-        <AlertCircle size={48} color="#FF3B30" style={{ marginBottom: '16px', opacity: 0.5 }} />
-        <h2 style={{ fontSize: '18px', fontWeight: '900', color: theme?.text, marginBottom: '8px' }}>Failed to load data</h2>
-        <p style={{ fontSize: '13px', color: theme?.text, opacity: 0.6, marginBottom: '24px' }}>Please check your internet connection and try again.</p>
-        <button 
-          onClick={fetchDashboardData}
-          style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '12px 24px', backgroundColor: '#007AFF', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}
-        >
-          <RefreshCw size={18} /> RETRY
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div style={{ padding: '15px', paddingBottom: '100px', color: theme?.text, backgroundColor: theme?.bg }}>
       
@@ -180,9 +79,11 @@ const Home = ({ theme, darkMode, userId }) => {
         <div>
           <h1 style={{ fontSize: '18px', fontWeight: '900', letterSpacing: '-0.3px', margin: 0, display: 'flex', alignItems: 'baseline', gap: '5px' }}>
             <span style={{ whiteSpace: 'nowrap', opacity: 0.8 }}>{greeting},</span>
-            <span style={{ color: '#007AFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px' }}>
-              {userName}
-            </span>
+            {userName && (
+              <span style={{ color: '#007AFF', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap', maxWidth: '140px' }}>
+                {userName}
+              </span>
+            )}
           </h1>
           <p style={{ color: darkMode ? '#777' : '#666', margin: 0, fontSize: '12px', fontWeight: '700' }}>
             {stats.totalTasks > 0 ? (
@@ -284,6 +185,15 @@ const Home = ({ theme, darkMode, userId }) => {
           </div>
         )}
       </div>
+
+      {/* Manual Refresh if needed (Handled by refreshData prop) */}
+      {!isOnline && (
+        <div style={{ marginTop: '20px', textAlign: 'center' }}>
+           <button onClick={refreshData} style={{ background: 'none', border: 'none', color: '#007AFF', fontWeight: '800', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px', margin: '0 auto' }}>
+             <RefreshCw size={14} /> REFRESH DATA
+           </button>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulseGreen {

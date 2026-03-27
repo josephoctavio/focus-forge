@@ -8,18 +8,18 @@ const BottomNav = ({ activeTab, setActiveTab, theme }) => {
     { id: 'profile', icon: <User size={22} />, label: 'Profile' }
   ];
 
+  const accentColor = theme?.accent || '#007AFF';
+
   return (
-    <div style={{ 
+    <nav style={{ 
       display: 'flex', 
       width: '100%', 
-      height: '70px', // Explicit height for better control
-      backgroundColor: theme?.card?.startsWith('#') ? `${theme.card}F2` : 'rgba(17, 17, 17, 0.95)', 
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
+      height: '75px', // Fixed height to feel substantial
+      backgroundColor: theme?.card || '#111111', // Solid color to match your screenshot
       alignItems: 'center',
-      paddingBottom: 'env(safe-area-inset-bottom)',
-      borderTop: `1px solid ${theme?.border}`,
-      position: 'relative'
+      paddingBottom: 'env(safe-area-inset-bottom)', // Space for iPhone home bar
+      borderTop: `1px solid ${theme?.border || '#222222'}`,
+      zIndex: 1000
     }}>
       {navItems.map((item) => {
         const isActive = activeTab === item.id;
@@ -35,62 +35,76 @@ const BottomNav = ({ activeTab, setActiveTab, theme }) => {
               flexDirection: 'column',
               justifyContent: 'center',
               alignItems: 'center',
-              background: 'transparent',
+              background: 'none',
               border: 'none',
               outline: 'none',
-              color: isActive ? '#007AFF' : theme?.text, 
-              position: 'relative',
               cursor: 'pointer',
-              transition: '0.2s all ease'
+              transition: 'all 0.3s ease',
+              position: 'relative'
             }}
           >
-            {/* Active Indicator Line */}
-            {isActive && (
-              <div style={{
-                position: 'absolute',
-                top: 0,
-                width: '30px',
-                height: '3px',
-                backgroundColor: '#007AFF',
-                borderRadius: '0 0 4px 4px',
-                boxShadow: '0 2px 10px rgba(0,122,255,0.5)',
-                animation: 'slideIn 0.3s ease-out'
-              }} />
-            )}
+            {/* THE BLUE CAPSULE FROM YOUR SCREENSHOT */}
+            <div style={{
+              position: 'absolute',
+              top: '12px', // Adjusted to center it better
+              width: '48px',
+              height: '34px',
+              backgroundColor: isActive ? `${accentColor}15` : 'transparent',
+              borderRadius: '14px',
+              transition: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              zIndex: 0
+            }} />
 
             <div style={{ 
               transform: isActive ? 'translateY(-2px)' : 'translateY(0)',
-              opacity: isActive ? 1 : 0.5,
-              transition: '0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)' 
+              color: isActive ? accentColor : '#555555', // Greyed out when inactive
+              transition: '0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+              zIndex: 1,
+              marginBottom: '4px'
             }}>
-              {/* Added strokeWidth for a cleaner look */}
-              {React.cloneElement(item.icon, { strokeWidth: isActive ? 2.5 : 2 })}
+              {React.cloneElement(item.icon, { 
+                strokeWidth: isActive ? 2.5 : 2,
+              })}
             </div>
 
             <span style={{ 
               fontSize: '10px', 
               fontWeight: '800', 
-              marginTop: '4px',
               letterSpacing: '0.5px',
-              opacity: isActive ? 1 : 0.5,
+              color: isActive ? accentColor : '#555555',
+              zIndex: 1,
               transition: '0.3s'
             }}>
               {item.label.toUpperCase()}
             </span>
+
+            {/* DOT INDICATOR AT THE VERY BOTTOM */}
+            {isActive && (
+              <div style={{
+                position: 'absolute',
+                bottom: '8px',
+                width: '4px',
+                height: '4px',
+                backgroundColor: accentColor,
+                borderRadius: '50%',
+                boxShadow: `0 0 10px ${accentColor}`,
+                animation: 'popIn 0.3s ease-out'
+              }} />
+            )}
           </button>
         );
       })}
 
       <style>{`
-        @keyframes slideIn {
-          from { transform: scaleX(0); opacity: 0; }
-          to { transform: scaleX(1); opacity: 1; }
+        @keyframes popIn {
+          0% { transform: scale(0); opacity: 0; }
+          100% { transform: scale(1); opacity: 1; }
         }
         button:active {
-          transform: scale(0.92);
+          transform: scale(0.95);
         }
       `}</style>
-    </div>
+    </nav>
   );
 };
 

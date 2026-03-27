@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { ArrowLeft, Plus, Trash2, User, ChevronUp, Loader2, AlertCircle, AlertTriangle, BookOpen, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
-const CourseManager = ({ setActiveTab, theme }) => {
-  const [courses, setCourses] = useState([]);
+const CourseManager = ({ setActiveTab, theme, darkMode, courses, loading, refreshData }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
   
   // UX States
   const [error, setError] = useState(null);
@@ -21,7 +20,7 @@ const CourseManager = ({ setActiveTab, theme }) => {
   const [courseName, setCourseName] = useState('');
   const [lecturer, setLecturer] = useState('');
   
-  const colors = ['#007AFF', '#FF9500', '#34C759', '#5856D6', '#FF2D55', '#AF52DE', '#5AC8FA', '#FFCC00'];
+  const colorsList = ['#007AFF', '#FF9500', '#34C759', '#5856D6', '#FF2D55', '#AF52DE', '#5AC8FA', '#FFCC00'];
 
   const showToast = (msg, type = 'success') => {
     setToast({ show: true, message: msg, type });
@@ -31,27 +30,14 @@ const CourseManager = ({ setActiveTab, theme }) => {
   const closeModal = () => setModalConfig({ ...modalConfig, isOpen: false });
   const showConfirm = (title, message, onConfirm) => setModalConfig({ isOpen: true, title, message, onConfirm });
 
-  // --- Toggle Form Logic ---
   const toggleForm = () => {
     if (isFormOpen) {
-      setError(null); // Clear errors when closing
+      setError(null);
       setCourseName('');
       setLecturer('');
     }
     setIsFormOpen(!isFormOpen);
   };
-
-  const fetchCourses = async () => {
-    try {
-        const { data, error } = await supabase.from('courses').select('*').order('created_at', { ascending: false });
-        if (error) throw error;
-        if (data) setCourses(data);
-    } catch (err) {
-        console.error("Fetch error:", err);
-    }
-  };
-
-  useEffect(() => { fetchCourses(); }, []);
 
   const triggerError = (msg) => {
     setError(msg);
@@ -60,118 +46,82 @@ const CourseManager = ({ setActiveTab, theme }) => {
 
   const addCourse = async () => {
     const trimmedName = courseName.trim();
-    
-    // 1. Check for empty data
-    if (!trimmedName) {
-      triggerError("Course Title is required");
-      return;
-    }
-
-    // 2. Check for Internet Connection
-    if (!window.navigator.onLine) {
-        triggerError("No internet connection. Please check your network.");
-        return;
-    }
-
-    if (loading) return;
+    if (!trimmedName) return triggerError("Course Title is required");
+    if (!window.navigator.onLine) return triggerError("No internet connection.");
+    if (formLoading) return;
 
     const exists = courses.some(c => c.name.toLowerCase() === trimmedName.toLowerCase());
-    if (exists) {
-      triggerError(`"${trimmedName}" is already added.`);
-      return;
-    }
+    if (exists) return triggerError(`"${trimmedName}" already exists.`);
 
-    setLoading(true);
+    setFormLoading(true);
     setError(null);
-    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    const randomColor = colorsList[Math.floor(Math.random() * colorsList.length)];
 
     const { error: dbError } = await supabase.from('courses').insert([
       { name: trimmedName, color: randomColor, lecturer: lecturer.trim() || null }
     ]);
 
     if (dbError) {
-      // Check if it's a connection/network error from the DB response
-      if (dbError.message?.toLowerCase().includes('fetch') || dbError.code === 'PGRST301') {
-        triggerError("Connection failed. Check your network.");
-      } else {
-        triggerError("Database error. Try again.");
-      }
-      setLoading(false);
+      triggerError("Failed to save. Try again.");
+      setFormLoading(false);
     } else {
-      showToast("Saved Successfully");
-      setCourseName(''); setLecturer(''); setIsFormOpen(false); setLoading(false); fetchCourses();
+      showToast("Course Added");
+      setCourseName(''); setLecturer(''); setIsFormOpen(false); setFormLoading(false);
+      refreshData(); // Updates the Global Brain
     }
   };
 
   const deleteCourse = (id) => {
-    showConfirm("Delete Course?", "This will permanently remove this course.", async () => {
-      if (!window.navigator.onLine) {
-        showToast("No internet connection", "delete");
-        closeModal();
-        return;
-      }
+    showConfirm("Delete Course?", "This will also affect assignments linked to this course.", async () => {
       const { error } = await supabase.from('courses').delete().eq('id', id);
       if (!error) {
-        fetchCourses();
-        showToast("Deleted Successfully", "delete");
-      } else {
-        showToast("Error deleting course", "delete");
+        showToast("Course Deleted", "delete");
+        refreshData();
       }
       closeModal();
     });
   };
 
-  const deleteAllCourses = () => {
-    showConfirm("DELETE EVERYTHING?", "All courses will be wiped forever.", async () => {
-      if (!window.navigator.onLine) {
-        showToast("No internet connection", "delete");
-        closeModal();
-        return;
-      }
-      const { error } = await supabase.from('courses').delete().neq('id', 0);
-      if (!error) {
-        fetchCourses();
-        showToast("All Courses Cleared", "delete");
-      }
-      closeModal();
-    });
-  };
+  // --- SKELETON UI ---
+  const SkeletonItem = () => (
+    <div className="skeleton" style={{ height: '75px', borderRadius: '20px', marginBottom: '12px' }} />
+  );
 
   return (
-    <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: theme.bg, color: theme.text, transition: 'all 0.3s ease', position: 'relative', paddingBottom: '120px' }}>
+    <div style={{ padding: '24px', minHeight: '100vh', backgroundColor: theme.bg, color: theme.text, paddingBottom: '120px' }}>
       
-      {/* TOAST NOTIFICATION */}
+      {/* TOAST */}
       {toast.show && (
-        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', backgroundColor: toast.type === 'delete' ? '#FF2D55' : '#34C759', color: '#fff', padding: '12px 24px', borderRadius: '50px', zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13px', boxShadow: '0 8px 20px rgba(0,0,0,0.3)', animation: 'slideUpToast 0.3s ease-out' }}>
-          {toast.type === 'delete' ? <Trash2 size={14}/> : <CheckCircle2 size={14} />}
-          {toast.message}
+        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', backgroundColor: toast.type === 'delete' ? '#FF3B30' : '#34C759', color: '#fff', padding: '14px 24px', borderRadius: '50px', zIndex: 10001, display: 'flex', alignItems: 'center', gap: '10px', fontWeight: '800', fontSize: '12px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)', animation: 'slideUpToast 0.3s ease-out' }}>
+          {toast.type === 'delete' ? <Trash2 size={16}/> : <CheckCircle2 size={16} />}
+          {toast.message.toUpperCase()}
         </div>
       )}
 
-      {/* MODAL */}
+      {/* CONFIRMATION MODAL */}
       {modalConfig.isOpen && (
-        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
-          <div style={{ backgroundColor: theme.card, border: `1px solid ${theme.border}`, padding: '25px', borderRadius: '24px', maxWidth: '350px', width: '100%', textAlign: 'center', animation: 'scaleUp 0.2s ease-out' }}>
-            <div style={{ backgroundColor: 'rgba(255,45,85,0.1)', width: '50px', height: '50px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
-              <AlertTriangle color="#FF2D55" size={24} />
+        <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
+          <div style={{ backgroundColor: theme.card, border: `1px solid ${theme.border}`, padding: '30px', borderRadius: '28px', maxWidth: '340px', width: '100%', textAlign: 'center', animation: 'scaleUp 0.2s ease-out' }}>
+            <div style={{ backgroundColor: 'rgba(255,59,48,0.1)', width: '56px', height: '56px', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <AlertTriangle color="#FF3B30" size={28} />
             </div>
-            <h3 style={{ color: theme.text, fontSize: '18px', fontWeight: '800', marginBottom: '10px' }}>{modalConfig.title}</h3>
-            <p style={{ color: theme.text, opacity: 0.6, fontSize: '14px', marginBottom: '25px' }}>{modalConfig.message}</p>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <button onClick={closeModal} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: theme.border, color: theme.text, border: 'none', fontWeight: '700', cursor: 'pointer' }}>CANCEL</button>
-              <button onClick={modalConfig.onConfirm} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: '#FF2D55', color: '#fff', border: 'none', fontWeight: '700', cursor: 'pointer' }}>CONFIRM</button>
+            <h3 style={{ fontSize: '18px', fontWeight: '900', marginBottom: '10px' }}>{modalConfig.title}</h3>
+            <p style={{ opacity: 0.5, fontSize: '14px', marginBottom: '28px', lineHeight: '1.5' }}>{modalConfig.message}</p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button onClick={closeModal} style={{ flex: 1, padding: '14px', borderRadius: '16px', background: theme.border, color: theme.text, border: 'none', fontWeight: '700' }}>CANCEL</button>
+              <button onClick={modalConfig.onConfirm} style={{ flex: 1, padding: '14px', borderRadius: '16px', background: '#FF3B30', color: '#fff', border: 'none', fontWeight: '800' }}>DELETE</button>
             </div>
           </div>
         </div>
       )}
 
       {/* HEADER */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-          <button onClick={() => setActiveTab('profile')} style={{ background: theme.card, border: `1px solid ${theme.border}`, padding: '8px', borderRadius: '10px', color: theme.text, cursor: 'pointer' }}><ArrowLeft size={20} /></button>
-          <h2 style={{ fontSize: '18px', fontWeight: '800' }}>COURSES</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '35px', paddingTop: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <button onClick={() => setActiveTab('profile')} style={{ background: theme.card, border: `1px solid ${theme.border}`, padding: '10px', borderRadius: '14px', color: theme.text, display: 'flex' }}><ArrowLeft size={20} /></button>
+          <h2 style={{ fontSize: '20px', fontWeight: '900', letterSpacing: '-0.5px' }}>COURSES</h2>
         </div>
-        <button onClick={toggleForm} style={{ backgroundColor: isFormOpen ? theme.card : '#007AFF', color: isFormOpen ? theme.text : '#fff', border: isFormOpen ? `1px solid ${theme.border}` : 'none', padding: '8px 16px', borderRadius: '10px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}>
+        <button onClick={toggleForm} style={{ backgroundColor: isFormOpen ? theme.card : theme.accent, color: isFormOpen ? theme.text : '#fff', border: isFormOpen ? `1px solid ${theme.border}` : 'none', padding: '10px 18px', borderRadius: '14px', fontWeight: '800', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isFormOpen ? <ChevronUp size={16} /> : <Plus size={16} />}
           {isFormOpen ? 'CLOSE' : 'ADD NEW'}
         </button>
@@ -181,84 +131,81 @@ const CourseManager = ({ setActiveTab, theme }) => {
       {isFormOpen && (
         <div 
           key={shakeKey} 
-          style={{ backgroundColor: theme.card, padding: '20px', borderRadius: '24px', border: `1px solid ${error ? '#FF2D55' : theme.border}`, marginBottom: '30px', animation: error ? 'shake 0.4s cubic-bezier(.36,.07,.19,.97) both' : 'fadeIn 0.3s ease' }}
+          style={{ backgroundColor: theme.card, padding: '24px', borderRadius: '28px', border: `1px solid ${error ? '#FF3B30' : theme.border}`, marginBottom: '32px', animation: error ? 'shake 0.4s both' : 'fadeIn 0.3s ease', boxShadow: `0 10px 40px rgba(0,0,0,${darkMode ? '0.4' : '0.05'})` }}
         >
-          <div style={{ marginBottom: '15px' }}>
-            <label style={{ fontSize: '11px', color: error ? '#FF2D55' : theme.text, opacity: 0.5, fontWeight: '800', marginBottom: '8px', display: 'block' }}>COURSE NAME *</label>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ fontSize: '10px', color: error ? '#FF3B30' : theme.text, opacity: 0.5, fontWeight: '900', marginBottom: '10px', display: 'block', letterSpacing: '1px' }}>COURSE TITLE</label>
             <input 
               type="text" 
-              maxLength={20} 
-              placeholder="e.g. Computer Science" 
+              placeholder="e.g. MTH 102" 
               value={courseName} 
-              onChange={(e) => { 
-                setCourseName(e.target.value); 
-                if(error) setError(null); 
-              }} 
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: theme.bg, border: `1px solid ${error ? '#FF2D55' : theme.border}`, color: theme.text, outline: 'none', boxSizing: 'border-box' }} 
+              onChange={(e) => { setCourseName(e.target.value); if(error) setError(null); }} 
+              style={{ width: '100%', padding: '16px', borderRadius: '16px', backgroundColor: theme.bg, border: `1px solid ${error ? '#FF3B30' : theme.border}`, color: theme.text, outline: 'none', fontWeight: '600' }} 
             />
-            {error && <div style={{ color: '#FF2D55', fontSize: '11px', fontWeight: '700', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={12}/> {error}</div>}
+            {error && <div style={{ color: '#FF3B30', fontSize: '11px', fontWeight: '800', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}><AlertCircle size={14}/> {error.toUpperCase()}</div>}
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontSize: '11px', color: theme.text, opacity: 0.5, fontWeight: '800', marginBottom: '8px', display: 'block' }}>LECTURER (OPTIONAL)</label>
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ fontSize: '10px', color: theme.text, opacity: 0.5, fontWeight: '900', marginBottom: '10px', display: 'block', letterSpacing: '1px' }}>LECTURER (OPTIONAL)</label>
             <div style={{ position: 'relative' }}>
-              <User size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', opacity: 0.4 }} />
-              <input type="text" maxLength={25} placeholder="Dr. Smith" value={lecturer} onChange={(e) => setLecturer(e.target.value)} style={{ width: '100%', padding: '14px 14px 14px 44px', borderRadius: '12px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.text, outline: 'none', boxSizing: 'border-box' }} />
+              <User size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
+              <input type="text" placeholder="Dr. Jane Doe" value={lecturer} onChange={(e) => setLecturer(e.target.value)} style={{ width: '100%', padding: '16px 16px 16px 48px', borderRadius: '16px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.text, outline: 'none', fontWeight: '600' }} />
             </div>
           </div>
           
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <button onClick={addCourse} disabled={loading} style={{ minWidth: '160px', backgroundColor: '#007AFF', color: '#fff', padding: '12px 24px', borderRadius: '12px', fontWeight: '800', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', fontSize: '14px' }}>
-              {loading ? <Loader2 className="spin" size={16} /> : 'SAVE COURSE'}
-            </button>
-          </div>
+          <button onClick={addCourse} disabled={formLoading} style={{ width: '100%', backgroundColor: theme.accent, color: '#fff', padding: '16px', borderRadius: '16px', fontWeight: '900', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontSize: '14px' }}>
+            {formLoading ? <Loader2 className="spin" size={18} /> : 'SAVE COURSE'}
+          </button>
         </div>
       )}
 
       {/* LIST */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        {courses.length === 0 && !isFormOpen ? (
-          <div style={{ height: '60vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
-            <BookOpen size={80} style={{ marginBottom: '20px', opacity: 0.1 }} />
-            <h3 style={{ fontSize: '20px', fontWeight: '800', color: theme.text }}>No Courses Yet</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {loading ? (
+          [1, 2, 3, 4].map(i => <SkeletonItem key={i} />)
+        ) : courses.length === 0 && !isFormOpen ? (
+          <div style={{ height: '50vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}>
+            <BookOpen size={64} strokeWidth={1} style={{ marginBottom: '16px' }} />
+            <p style={{ fontWeight: '800', fontSize: '14px', letterSpacing: '1px' }}>NO COURSES ADDED</p>
           </div>
         ) : (
           courses.map(course => (
-            <div key={course.id} style={{ padding: '18px', backgroundColor: theme.card, borderRadius: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${theme.border}`, animation: 'fadeIn 0.3s ease' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                <div style={{ width: '4px', height: '35px', backgroundColor: course.color, borderRadius: '10px' }} />
+            <div key={course.id} style={{ padding: '20px', backgroundColor: theme.card, borderRadius: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: `1px solid ${theme.border}`, animation: 'fadeIn 0.3s ease' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ width: '6px', height: '40px', backgroundColor: course.color, borderRadius: '10px', boxShadow: `0 0 15px ${course.color}44` }} />
                 <div>
-                  <div style={{ fontWeight: '700', fontSize: '16px', color: theme.text }}>{course.name}</div>
-                  {course.lecturer && <div style={{ fontSize: '12px', color: theme.text, opacity: 0.5 }}>{course.lecturer}</div>}
+                  <div style={{ fontWeight: '800', fontSize: '16px', color: theme.text, letterSpacing: '-0.3px' }}>{course.name}</div>
+                  {course.lecturer && <div style={{ fontSize: '12px', color: theme.text, opacity: 0.4, fontWeight: '600', marginTop: '2px' }}>{course.lecturer}</div>}
                 </div>
               </div>
-              <button onClick={() => deleteCourse(course.id)} style={{ background: 'transparent', border: 'none', color: theme.text, opacity: 0.3, cursor: 'pointer' }}><Trash2 size={18} /></button>
+              <button onClick={() => deleteCourse(course.id)} style={{ background: 'rgba(255,59,48,0.05)', border: 'none', color: '#FF3B30', padding: '10px', borderRadius: '12px', cursor: 'pointer', display: 'flex' }}><Trash2 size={18} /></button>
             </div>
           ))
         )}
       </div>
 
-      {/* CLEAR ALL BUTTON */}
-      {courses.length >= 6 && !isFormOpen && (
-        <button onClick={deleteAllCourses} style={{ width: '100%', padding: '16px', backgroundColor: 'transparent', border: `1px dashed ${theme.border}`, color: '#FF2D55', borderRadius: '20px', fontWeight: '700', fontSize: '12px', cursor: 'pointer', marginTop: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
-          <Trash2 size={14} /> CLEAR ALL COURSES ({courses.length})
-        </button>
-      )}
-
       <style>{`
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         
-        @keyframes shake {
-          10%, 90% { transform: translateX(-4px); }
-          20%, 80% { transform: translateX(4px); }
-          30%, 50%, 70% { transform: translateX(-8px); }
-          40%, 60% { transform: translateX(8px); }
+        .skeleton { 
+          background: ${darkMode ? '#1A1A1A' : '#E1E1E1'};
+          background-image: linear-gradient(90deg, transparent, ${darkMode ? '#222' : '#F0F0F0'}, transparent);
+          background-size: 200px 100%;
+          background-repeat: no-repeat;
+          animation: shimmer 1.5s infinite linear;
         }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+        @keyframes shake {
+          10%, 90% { transform: translateX(-2px); }
+          20%, 80% { transform: translateX(2px); }
+          30%, 50%, 70% { transform: translateX(-4px); }
+          40%, 60% { transform: translateX(4px); }
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes scaleUp { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-        @keyframes slideUpToast { from { opacity: 0; transform: translate(-50%, 40px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        @keyframes slideUpToast { from { opacity: 0; transform: translate(-50%, 20px); } to { opacity: 1; transform: translate(-50%, 0); } }
       `}</style>
     </div>
   );
