@@ -30,12 +30,12 @@ function App() {
 
   // --- AUTH LOGIC ---
   useEffect(() => {
-    // 1. HARD URL CHECK FIRST: Intercept recovery before anything else
+    // 1. HARD URL CHECK: Immediate interception for email recovery links
     const hash = window.location.hash;
     if (hash && hash.includes('type=recovery')) {
       setIsRecoveringPassword(true);
-      setInitializing(false); // Stop loading, force to Auth screen
-      return; // Exit early so checkInitialAuth doesn't override this
+      setInitializing(false);
+      return; 
     }
 
     const checkInitialAuth = async () => {
@@ -46,11 +46,22 @@ function App() {
 
     checkInitialAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
+    // 2. Auth State Listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      setSession(newSession);
       
+      // Triggered by clicking the email link
       if (event === "PASSWORD_RECOVERY") {
         setIsRecoveringPassword(true); 
+      }
+      
+      // Triggered after successfully saving the new password
+      if (event === "USER_UPDATED") {
+        setIsRecoveringPassword(false);
+        // Clean the URL hash to prevent re-triggering recovery mode
+        if (window.location.hash.includes('type=recovery')) {
+          window.history.replaceState(null, null, window.location.pathname);
+        }
       }
       
       if (event === "SIGNED_OUT") {
@@ -58,11 +69,6 @@ function App() {
         setActiveTab('home'); 
       }
 
-      if (event === "USER_UPDATED" && isRecoveringPassword) {
-        setIsRecoveringPassword(false);
-      }
-
-      // Only stop initializing if we aren't explicitly holding for recovery
       if (!isRecoveringPassword) {
         setInitializing(false);
       }
@@ -97,6 +103,7 @@ function App() {
   };
 
   const fetchAllData = useCallback(async () => {
+    // Don't pull data if there's no user or if we are in the middle of a password reset
     if (!session || isRecoveringPassword) return; 
     
     setLoading(true);
@@ -120,6 +127,7 @@ function App() {
     fetchAllData();
   }, [fetchAllData]);
 
+  // --- THEME MEMO ---
   const theme = useMemo(() => ({
     bg: darkMode ? '#000000' : '#F5F5F7',
     text: darkMode ? '#FFFFFF' : '#000000',
@@ -129,19 +137,23 @@ function App() {
     danger: '#FF3B30'
   }), [darkMode]);
 
+  // --- RENDER LOGIC ---
+
   if (initializing) {
     return <div style={{ backgroundColor: '#000', minHeight: '100vh' }} />;
   }
 
-  // FORCE AUTH COMPONENT IF IN RECOVERY MODE
+  // Gate 1: If user is resetting via email link, lock to Auth screen
   if (isRecoveringPassword) {
     return <Auth forceRecovery={true} />; 
   }
 
+  // Gate 2: If no active session, show standard Login/Signup
   if (!session) {
     return <Auth />;
   }
 
+  // Main Application
   return (
     <div className={`app-shell ${darkMode ? 'dark' : 'light'}`} style={{ backgroundColor: theme.bg, color: theme.text, minHeight: '100vh' }}>
       <div className="mobile-container">

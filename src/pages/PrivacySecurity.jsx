@@ -8,7 +8,10 @@ import {
   ChevronDown,
   LogOut,
   RefreshCw,
-  MailCheck
+  MailCheck,
+  Eye,
+  EyeOff,
+  Check
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -22,6 +25,11 @@ const PrivacySecurity = ({ onBack, theme }) => {
   const [deviceDropdownOpen, setDeviceDropdownOpen] = useState(false);
   const [sessionInfo, setSessionInfo] = useState(null);
   
+  // New states for direct password update
+  const [newPassword, setNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
+
   const tooltipTimeout = useRef(null);
 
   const colors = {
@@ -30,7 +38,8 @@ const PrivacySecurity = ({ onBack, theme }) => {
     bg: theme?.bg || '#000',
     border: theme?.border || '#222222',
     accent: '#007AFF',
-    danger: '#FF3B30'
+    danger: '#FF3B30',
+    success: '#34C759'
   };
 
   useEffect(() => {
@@ -47,18 +56,15 @@ const PrivacySecurity = ({ onBack, theme }) => {
     };
     getSessionData();
 
-    // Cleanup timeout on unmount
     return () => {
       if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
     };
   }, []);
 
   const triggerTooltip = () => {
-    // Reset if already showing
     setShowTooltip(false);
     if (tooltipTimeout.current) clearTimeout(tooltipTimeout.current);
     
-    // Small delay to re-trigger animation
     setTimeout(() => {
       setShowTooltip(true);
       tooltipTimeout.current = setTimeout(() => {
@@ -67,12 +73,25 @@ const PrivacySecurity = ({ onBack, theme }) => {
     }, 10);
   };
 
-  const handlePasswordReset = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user?.email) {
-      const { error } = await supabase.auth.resetPasswordForEmail(user.email);
-      if (!error) triggerTooltip();
+  // --- Step B: The Code Logic ---
+  const handleInternalPasswordChange = async () => {
+    if (!newPassword || newPassword.length < 6) {
+        alert("Password must be at least 6 characters.");
+        return;
     }
+    
+    setUpdateLoading(true);
+    const { error } = await supabase.auth.updateUser({ 
+      password: newPassword 
+    });
+
+    if (error) {
+      alert(error.message);
+    } else {
+      alert("Password updated successfully! You're all set.");
+      setNewPassword(''); // Clear the input field
+    }
+    setUpdateLoading(false);
   };
 
   const handleAction = async () => {
@@ -115,10 +134,10 @@ const PrivacySecurity = ({ onBack, theme }) => {
   return (
     <div style={{ padding: '24px', color: colors.text, backgroundColor: colors.bg, minHeight: '100vh', position: 'relative' }}>
       
-      {/* TOOLTIP: Slide Up Entrance, Fade Out Exit */}
+      {/* TOOLTIP */}
       <div style={{
         position: 'fixed', 
-        bottom: '100px', // Raised higher to clear BottomNav
+        bottom: '100px', 
         left: '50%', 
         transform: `translateX(-50%) translateY(${showTooltip ? '0' : '50px'})`,
         opacity: showTooltip ? 1 : 0,
@@ -137,7 +156,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
         boxShadow: '0 15px 35px rgba(0,0,0,0.6)'
       }}>
         <MailCheck size={18} color={colors.accent} />
-        <span style={{ fontSize: '13px', fontWeight: '700' }}>Reset link sent to your email</span>
+        <span style={{ fontSize: '13px', fontWeight: '700' }}>Update successful</span>
       </div>
 
       {/* MODAL SYSTEM */}
@@ -153,8 +172,8 @@ const PrivacySecurity = ({ onBack, theme }) => {
                 {modalType === 'delete' ? 'Delete Account?' : modalType === 'reset' ? 'Nuclear Reset?' : 'Sign Out?'}
             </h2>
             <p style={{ fontSize: '13px', opacity: 0.5, lineHeight: '1.5', marginBottom: '24px' }}>
-                {modalType === 'delete' && "This will permanently wipe your profile, all assignments, courses, and study data. This cannot be undone."}
-                {modalType === 'reset' && "This wipes all your courses and assignments but keeps your account settings and profile intact."}
+                {modalType === 'delete' && "This will permanently wipe your profile, all assignments, courses, and study data."}
+                {modalType === 'reset' && "This wipes all your courses and assignments but keeps your account settings intact."}
                 {modalType === 'logout' && "Are you sure you want to log out of StudyFlow on this device?"}
             </p>
             {modalType !== 'logout' && (
@@ -187,9 +206,46 @@ const PrivacySecurity = ({ onBack, theme }) => {
         </button>
       </div>
 
-      {/* SECTIONS */}
+      {/* SECTION: LOGIN / PASSWORD UPDATE */}
       <h3 style={{ fontSize: '11px', fontWeight: '800', color: colors.accent, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '25px 0 12px 10px' }}>LOGIN</h3>
-      <SecurityRow icon={<Lock size={18} color="#FF9500" />} label="Update Password" desc="Send reset link to email" onClick={handlePasswordReset} colors={colors} />
+      
+      {/* --- Step A: Update Password UI with direct input field --- */}
+      <div style={{ backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '22px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ backgroundColor: 'rgba(255,149,0,0.1)', padding: '10px', borderRadius: '12px', border: '1px solid rgba(255,149,0,0.2)' }}>
+            <Lock size={18} color="#FF9500" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <p style={{ margin: 0, fontWeight: '700', fontSize: '15px' }}>Update Password</p>
+            <p style={{ margin: '2px 0 0 0', fontSize: '11px', opacity: 0.4 }}>Change your password instantly</p>
+          </div>
+        </div>
+
+        <div style={{ position: 'relative', width: '100%' }}>
+          <input 
+            type={showNewPassword ? "text" : "password"}
+            placeholder="New Password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            style={{ width: '100%', padding: '16px', paddingRight: '110px', borderRadius: '16px', backgroundColor: colors.bg, border: `1px solid ${colors.border}`, color: colors.text, outline: 'none', fontSize: '14px' }}
+          />
+          <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', display: 'flex', gap: '8px' }}>
+            <button 
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                style={{ background: 'transparent', border: 'none', padding: '8px', opacity: 0.4, cursor: 'pointer' }}
+            >
+                {showNewPassword ? <EyeOff size={18} color={colors.text} /> : <Eye size={18} color={colors.text} />}
+            </button>
+            <button 
+                onClick={handleInternalPasswordChange}
+                disabled={updateLoading || !newPassword}
+                style={{ backgroundColor: colors.accent, color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '10px', fontWeight: '800', fontSize: '10px', opacity: !newPassword ? 0.3 : 1, transition: '0.3s' }}
+            >
+                {updateLoading ? '...' : 'SAVE'}
+            </button>
+          </div>
+        </div>
+      </div>
 
       <h3 style={{ fontSize: '11px', fontWeight: '800', color: colors.accent, textTransform: 'uppercase', letterSpacing: '1.5px', margin: '25px 0 12px 10px' }}>DEVICES</h3>
       <div style={{ backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '18px', overflow: 'hidden' }}>
@@ -226,7 +282,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
 };
 
 const SecurityRow = ({ icon, label, desc, onClick, colors }) => (
-  <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '16px', backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '18px', gap: '16px', textAlign: 'left' }}>
+  <button onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '16px', backgroundColor: colors.card, border: `1px solid ${colors.border}`, borderRadius: '18px', gap: '16px', textAlign: 'left', cursor: 'pointer' }}>
     <div style={{ backgroundColor: 'rgba(255,255,255,0.03)', padding: '10px', borderRadius: '12px', border: `1px solid ${colors.border}` }}>{icon}</div>
     <div style={{ flex: 1 }}>
       <p style={{ margin: 0, fontWeight: '700', fontSize: '15px' }}>{label}</p>

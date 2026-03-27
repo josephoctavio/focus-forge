@@ -40,14 +40,23 @@ export default function Auth({ forceRecovery = false }) {
 
     try {
       if (isUpdatingPassword) {
+        // --- Updated Password Update Block ---
         const { error } = await supabase.auth.updateUser({ password });
         if (error) throw error;
-        alert('Password saved! Please log in with your new password.');
         
+        alert('Password saved! Logging you in...');
+
+        // 1. Clear the recovery states
         setIsUpdatingPassword(false);
         setPassword('');
-        // Clear the URL hash entirely to escape recovery mode
-        window.history.replaceState(null, null, window.location.pathname);
+        
+        // 2. IMPORTANT: Hard refresh the session to sync App.jsx
+        await supabase.auth.getSession(); 
+        
+        // 3. Clear the URL and force a reload to "clean" the app state
+        window.location.hash = '';
+        window.location.reload(); // This is the "magic" that prevents the hang
+        // -------------------------------------
       } else if (resetMode) {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin, 
@@ -80,7 +89,7 @@ export default function Auth({ forceRecovery = false }) {
         <div className="text-center space-y-2">
           <div className="flex justify-center mb-4">
              <div className="p-3 bg-blue-600/20 rounded-2xl border border-blue-500/30">
-                <ShieldCheck className="text-blue-500" size={32} />
+                < ShieldCheck className="text-blue-500" size={32} />
              </div>
           </div>
           <h2 className="text-3xl font-extrabold tracking-tight">
