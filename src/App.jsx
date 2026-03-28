@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from './supabaseClient';
+import { Globe, RefreshCw, AlertCircle } from 'lucide-react'; 
 import './App.css';
 
 // Components
@@ -22,10 +23,12 @@ function App() {
   const [initializing, setInitializing] = useState(true); 
   const [activeTab, setActiveTab] = useState('home');
   const [darkMode, setDarkMode] = useState(true); 
+  const [accentColor, setAccentColor] = useState('#007AFF'); // Default Blue
   const [isRecoveringPassword, setIsRecoveringPassword] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine); // Track internet status
+  const [isOnline, setIsOnline] = useState(navigator.onLine); 
+  const [isRetrying, setIsRetrying] = useState(false); 
+  const [retryError, setRetryError] = useState(false); 
   
-  // Shared Data State
   const [assignments, setAssignments] = useState([]);
   const [courses, setCourses] = useState([]);
   const [fullTimetable, setFullTimetable] = useState([]); 
@@ -36,7 +39,10 @@ function App() {
 
   // --- INTERNET CONNECTIVITY LOGIC ---
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnline(true);
+      setRetryError(false);
+    };
     const handleOffline = () => setIsOnline(false);
 
     window.addEventListener('online', handleOnline);
@@ -47,6 +53,20 @@ function App() {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  const handleRetry = () => {
+    setIsRetrying(true);
+    setRetryError(false);
+    setTimeout(() => {
+      if (navigator.onLine) {
+        window.location.reload();
+      } else {
+        setIsRetrying(false);
+        setRetryError(true);
+        setTimeout(() => setRetryError(false), 3000);
+      }
+    }, 1500);
+  };
 
   // --- AUTH LOGIC ---
   useEffect(() => {
@@ -68,11 +88,7 @@ function App() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       setSession(newSession);
       if (event === "PASSWORD_RECOVERY") setIsRecoveringPassword(true); 
-      
-      if (event === "USER_UPDATED") {
-        setIsRecoveringPassword(false);
-      }
-      
+      if (event === "USER_UPDATED") setIsRecoveringPassword(false);
       if (event === "SIGNED_OUT") {
         setIsRecoveringPassword(false);
         setActiveTab('home'); 
@@ -89,6 +105,7 @@ function App() {
       if (data) {
         setProfileData(data);
         if (data.dark_mode !== null) setDarkMode(data.dark_mode);
+        if (data.theme_color) setAccentColor(data.theme_color); // Load saved color
         if (data.full_name) setUserName(data.full_name.split(' ')[0]);
       }
     } catch (err) { console.error("Error preferences:", err); }
@@ -99,6 +116,14 @@ function App() {
     setDarkMode(newMode); 
     if (session?.user?.id) {
       await supabase.from('profiles').update({ dark_mode: newMode }).eq('id', session.user.id);
+    }
+  };
+
+  // New function to update accent color globally and in DB
+  const updateAccentColor = async (newColor) => {
+    setAccentColor(newColor); // Update UI immediately
+    if (session?.user?.id) {
+      await supabase.from('profiles').update({ theme_color: newColor }).eq('id', session.user.id);
     }
   };
 
@@ -153,36 +178,87 @@ function App() {
     text: darkMode ? '#FFFFFF' : '#000000',
     card: darkMode ? '#111111' : '#FFFFFF',
     border: darkMode ? '#222222' : '#E5E5E5',
-    accent: '#007AFF',
+    accent: accentColor, // Dynamically uses the accentColor state
     danger: '#FF3B30',
     muted: darkMode ? '#888888' : '#666666'
-  }), [darkMode]);
+  }), [darkMode, accentColor]);
 
   // --- RENDER LOGIC ---
 
-  // 1. Initialization Guard
   if (initializing) return <div style={{ backgroundColor: '#000', minHeight: '100vh' }} />;
 
-  // 2. Offline Guard
   if (!isOnline) {
     return (
-      <div style={{ backgroundColor: theme.bg, color: theme.text, height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '20px' }}>
-        <div style={{ fontSize: '50px', marginBottom: '20px' }}>🌐</div>
-        <h2 style={{ fontSize: '20px', fontWeight: '600' }}>No Internet Connection</h2>
-        <p style={{ color: theme.muted, marginTop: '10px', maxWidth: '280px', lineHeight: '1.5' }}>
-          Please check your connection to continue using StudyFlow.
+      <div style={{ 
+        backgroundColor: '#000000', color: '#FFFFFF', height: '100vh', 
+        display: 'flex', flexDirection: 'column', alignItems: 'center', 
+        justifyContent: 'center', textAlign: 'center', padding: '24px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+      }}>
+        <div style={{ 
+          position: 'absolute', top: '40px', 
+          transform: `translateY(${retryError ? '0' : '-100px'})`,
+          opacity: retryError ? 1 : 0,
+          transition: 'all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          backgroundColor: '#FF3B30', color: '#FFF', 
+          padding: '12px 20px', borderRadius: '14px', 
+          display: 'flex', alignItems: 'center', gap: '8px', 
+          fontSize: '14px', fontWeight: '700', boxShadow: '0 10px 30px rgba(255, 59, 48, 0.3)'
+        }}>
+          <AlertCircle size={18} /> No internet connection detected
+        </div>
+
+        <div style={{ 
+          width: '80px', height: '80px', backgroundColor: `${accentColor}22`, 
+          borderRadius: '24px', display: 'flex', alignItems: 'center', 
+          justifyContent: 'center', marginBottom: '32px' 
+        }}>
+          <Globe size={40} color={accentColor} strokeWidth={1.5} />
+        </div>
+        
+        <h2 style={{ fontSize: '24px', fontWeight: '800', margin: '0 0 12px 0', letterSpacing: '-0.5px' }}>
+          No Internet Connection
+        </h2>
+        
+        <p style={{ color: '#888', fontSize: '15px', fontWeight: '500', lineHeight: '1.5', maxWidth: '280px', margin: '0 0 32px 0' }}>
+          Please check your connection to continue using Focus Forge.
         </p>
+        
         <button 
-          onClick={() => window.location.reload()}
-          style={{ marginTop: '25px', padding: '12px 24px', backgroundColor: theme.accent, color: '#fff', border: 'none', borderRadius: '12px', fontWeight: 'bold', cursor: 'pointer' }}
+          onClick={handleRetry}
+          disabled={isRetrying}
+          className={retryError ? 'shake' : ''}
+          style={{ 
+            width: '100%', maxWidth: '280px', padding: '16px', 
+            backgroundColor: retryError ? '#FF3B30' : accentColor, 
+            color: '#FFFFFF', border: 'none', borderRadius: '16px', 
+            fontSize: '16px', fontWeight: '700', 
+            cursor: isRetrying ? 'default' : 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            gap: '10px', transition: 'all 0.3s ease'
+          }}
         >
-          Retry Connection
+          {isRetrying ? (
+            <RefreshCw size={20} className="spinner-anim" />
+          ) : (
+            retryError ? 'Try Again' : 'Retry Connection'
+          )}
         </button>
+
+        <style>{`
+          @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+          @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-8px); }
+            75% { transform: translateX(8px); }
+          }
+          .spinner-anim { animation: spin 1s linear infinite; }
+          .shake { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
+        `}</style>
       </div>
     );
   }
 
-  // 3. Auth Guards
   if (isRecoveringPassword) return <Auth forceRecovery={true} />; 
   if (!session) return <Auth />;
 
@@ -191,10 +267,9 @@ function App() {
       <div className="mobile-container">
         <main className="main-content" style={{ paddingBottom: '80px' }}>
           
-          {/* HOME TAB */}
           {activeTab === 'home' && (
             <>
-              <Header title="STUDYFLOW" showThemeToggle={true} darkMode={darkMode} setDarkMode={toggleTheme} theme={theme} />
+              <Header title="Focus Forge" showThemeToggle={true} darkMode={darkMode} setDarkMode={toggleTheme} theme={theme} />
               <Home 
                 userId={session?.user?.id} userName={userName} stats={stats}
                 todayClasses={todayClasses} loading={loading} theme={theme} 
@@ -203,7 +278,6 @@ function App() {
             </>
           )}
 
-          {/* TASKS TAB */}
           {activeTab === 'tasks' && (
             <Tasks 
               assignments={assignments} courses={courses} loading={loading} 
@@ -211,7 +285,6 @@ function App() {
             />
           )}
 
-          {/* PROFILE TAB */}
           {activeTab === 'profile' && (
             <Profile 
               setActiveTab={setActiveTab} theme={theme} darkMode={darkMode} 
@@ -219,7 +292,6 @@ function App() {
             />
           )}
 
-          {/* SUB-PAGES */}
           {activeTab === 'edit-profile' && (
             <EditProfile onBack={() => setActiveTab('profile')} theme={theme} profileData={profileData} refreshData={fetchAllData} />
           )}
@@ -233,7 +305,13 @@ function App() {
           )}
 
           {activeTab === 'config' && (
-            <Settings setActiveTab={setActiveTab} theme={theme} darkMode={darkMode} toggleTheme={toggleTheme} />
+            <Settings 
+                setActiveTab={setActiveTab} 
+                theme={theme} 
+                darkMode={darkMode} 
+                toggleTheme={toggleTheme} 
+                onUpdateAccent={updateAccentColor} // New Prop
+            />
           )}
 
           {activeTab === 'privacy-security' && (

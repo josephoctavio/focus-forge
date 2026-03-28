@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { 
   ChevronRight, 
+  ChevronDown,
+  ChevronUp,
   Moon, 
   Sun,
   Bell, 
@@ -9,23 +11,33 @@ import {
   Mail, 
   RefreshCcw, 
   ShieldCheck, 
-  ArrowLeft
+  ArrowLeft,
+  Palette
 } from 'lucide-react';
 
-const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
+const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAccentPicker, setShowAccentPicker] = useState(false);
 
-  // LOGIC: Handle Refresh App
+  const ACCENT_OPTIONS = [
+    { name: 'Classic Blue', value: '#007AFF' },
+    { name: 'Royal Purple', value: '#AF52DE' },
+    { name: 'Electric Pink', value: '#FF2D55' },
+    { name: 'Vibrant Orange', value: '#FF9500' },
+    { name: 'Emerald', value: '#34C759' },
+    { name: 'Crimson', value: '#FF3B30' },
+    { name: 'Midnight', value: '#2C2C2E' },
+  ];
+
   const handleRefreshApp = () => {
     setIsRefreshing(true);
-    // Haptic-like delay for "Cleaning up..." feel
     setTimeout(() => {
       window.location.reload();
     }, 2000); 
   };
 
   const handleReportBug = () => {
-    window.location.href = "mailto:support@studyflow.com?subject=Bug Report - StudyFlow App";
+    window.location.href = "mailto:deltrynstudios@gmail.com?subject=Bug Report - Focus Forge";
   };
 
   const SectionHeader = ({ title }) => (
@@ -45,7 +57,7 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
   return (
     <div style={{ padding: '24px', color: theme.text, backgroundColor: theme.bg, minHeight: '100vh', position: 'relative' }}>
       
-      {/* IMPROVED REFRESH OVERLAY */}
+      {/* REFRESH OVERLAY */}
       {isRefreshing && (
         <div style={{
           position: 'fixed', inset: 0, backgroundColor: theme.bg, zIndex: 10000,
@@ -67,18 +79,19 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
       )}
 
       {/* HEADER */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '35px', paddingTop: '10px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '35px', paddingTop: '10px' }}>
+        <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, letterSpacing: '-0.5px' }}>Settings</h1>
         <button 
           onClick={() => setActiveTab('profile')}
           style={{ 
             background: theme.card, border: `1px solid ${theme.border}`, 
             borderRadius: '16px', padding: '12px', cursor: 'pointer', color: theme.text,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s ease'
           }}
+          className="back-btn"
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, letterSpacing: '-0.5px' }}>Settings</h1>
       </div>
 
       {/* ACCOUNT & SECURITY */}
@@ -92,9 +105,9 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
         />
       </div>
 
-      {/* APPEARANCE */}
+      {/* APPEARANCE & THEME */}
       <SectionHeader title="Appearance" />
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <SettingItem 
           icon={darkMode ? <Moon size={18} color="#FF9500" /> : <Sun size={18} color="#FFCC00" />} 
           label={darkMode ? "Dark Mode" : "Light Mode"} 
@@ -103,6 +116,70 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
           active={darkMode} 
           onToggle={toggleTheme} 
         />
+
+        {/* ACCENT COLOR PICKER WITH DROPDOWN */}
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* Main Toggle Row */}
+          <div 
+            onClick={() => setShowAccentPicker(!showAccentPicker)}
+            style={{ 
+              display: 'flex', alignItems: 'center', padding: '16px', backgroundColor: theme.card, 
+              border: `1px solid ${theme.border}`, 
+              borderRadius: showAccentPicker ? '22px 22px 0 0' : '22px', 
+              gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease',
+              borderBottom: showAccentPicker ? 'none' : `1px solid ${theme.border}`
+            }}
+          >
+            <div style={{ 
+              backgroundColor: `${theme.text}05`, padding: '10px', borderRadius: '14px', 
+              display: 'flex', alignItems: 'center', justifyContent: 'center', border: `1px solid ${theme.border}`
+            }}>
+              <Palette size={18} color={theme.accent} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontWeight: '800', fontSize: '15px', color: theme.text }}>Accent Color</p>
+              <p style={{ margin: '2px 0 0 0', fontSize: '11px', opacity: 0.4, fontWeight: '600', color: theme.text }}>Personalize your theme</p>
+            </div>
+            {showAccentPicker ? <ChevronUp size={18} style={{ opacity: 0.3, color: theme.text }} /> : <ChevronDown size={18} style={{ opacity: 0.3, color: theme.text }} />}
+          </div>
+
+          {/* Expandable Color List */}
+          <div style={{ 
+            maxHeight: showAccentPicker ? '100px' : '0px', 
+            opacity: showAccentPicker ? 1 : 0, 
+            overflow: 'hidden', 
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)' 
+          }}>
+            <div style={{ 
+              backgroundColor: theme.card, 
+              border: `1px solid ${theme.border}`, 
+              borderTop: 'none',
+              borderRadius: '0 0 22px 22px', 
+              padding: '16px 20px',
+              display: 'flex', gap: '16px', overflowX: 'auto'
+            }} className="hide-scrollbar">
+              {ACCENT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => onUpdateAccent(opt.value)}
+                  style={{
+                    width: '26px',
+                    height: '26px',
+                    borderRadius: '50%',
+                    backgroundColor: opt.value,
+                    border: theme.accent === opt.value ? `2px solid ${theme.bg}` : 'none',
+                    outline: theme.accent === opt.value ? `2px solid ${opt.value}` : 'none',
+                    boxShadow: theme.accent === opt.value ? `0 4px 12px ${opt.value}66` : 'none',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    transform: theme.accent === opt.value ? 'scale(1.15)' : 'scale(1)'
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* PREFERENCES */}
@@ -142,10 +219,10 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
         <SettingItem icon={<Smartphone size={18} color="#8E8E93" />} label="App Version" desc="v2.4.0 (Build 102)" theme={theme} hideArrow />
       </div>
 
-      {/* SPACER FOR BOTTOM NAV */}
       <div style={{ height: '120px' }} />
 
       <style>{`
+        .back-btn:active { transform: scale(0.92); }
         .setting-row { transition: transform 0.1s ease, background-color 0.2s ease; }
         .setting-row:active { transform: scale(0.97); }
         
@@ -157,6 +234,8 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme }) => {
         .spin-icon { animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
     </div>
   );

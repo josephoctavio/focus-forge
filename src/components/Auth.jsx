@@ -240,7 +240,7 @@ export default function Auth({ forceRecovery = false }) {
               <div style={{ fontSize: '12px', lineHeight: '1.7', opacity: 0.7, color: '#fff' }}>
                 {legalType === 'terms' ? (
                   <>
-                    <p><b>1. Acceptance:</b> By using StudyFlow, you agree to these terms.</p>
+                    <p><b>1. Acceptance:</b> By using Focus Forge, you agree to these terms.</p>
                     <p><b>2. Security:</b> You are responsible for your own password and account activity.</p>
                     <p><b>3. Service:</b> Built by Deltryn Studios. Provided "as is" for academic assistance.</p>
                     <p><b>4. Fair Use:</b> No automated scraping or malicious database access allowed.</p>

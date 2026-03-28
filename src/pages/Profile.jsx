@@ -1,15 +1,6 @@
 import React, { useState } from 'react';
-import { UserCircle, BookOpen, Settings, ChevronRight, Clock, UserCog, BarChart3, Info } from 'lucide-react';
+import { BookOpen, Settings, ChevronRight, Clock, UserCog, BarChart3, Info } from 'lucide-react';
 import { supabase } from '../supabaseClient';
-
-const BASE_URL = "https://hcdgxxcjmamrlojhshxa.supabase.co/storage/v1/object/public/avatars/";
-
-const avatarMap = {
-  av1: `${BASE_URL}av1.png`, av2: `${BASE_URL}av2.png`, av3: `${BASE_URL}av3.png`,
-  av4: `${BASE_URL}av4.png`, av5: `${BASE_URL}av5.png`, av6: `${BASE_URL}av6.png`,
-  av7: `${BASE_URL}av7.png`, av8: `${BASE_URL}av8.png`, av9: `${BASE_URL}av9.png`,
-  av10: `${BASE_URL}av10.png`, av11: `${BASE_URL}av11.png`, av12: `${BASE_URL}av12.png`,
-};
 
 const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, loading }) => {
   const [modalOpen, setModalOpen] = useState(false);
@@ -19,16 +10,22 @@ const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, 
     card: theme?.card || '#111111',
     bg: theme?.bg || '#000',
     border: theme?.border || '#222222',
-    accent: '#007AFF'
+    accent: theme?.accent || '#007AFF'
   };
 
   const handleLogout = async () => await supabase.auth.signOut();
+
+  // Extract the first initial from the name
+  const getInitial = () => {
+    const name = profileData?.full_name || 'Member';
+    return name.charAt(0).toUpperCase();
+  };
 
   // --- SKELETON LOADING UI ---
   if (loading) return (
     <div style={{ padding: '20px', backgroundColor: colors.bg, minHeight: '100vh' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0' }}>
-        <div className="skeleton" style={{ width: '110px', height: '110px', borderRadius: '30px', marginBottom: '20px' }} />
+        <div className="skeleton" style={{ width: '110px', height: '110px', borderRadius: '32px', marginBottom: '20px' }} />
         <div className="skeleton" style={{ width: '160px', height: '24px', borderRadius: '8px', marginBottom: '10px' }} />
         <div className="skeleton" style={{ width: '100px', height: '14px', borderRadius: '6px' }} />
       </div>
@@ -42,12 +39,17 @@ const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, 
       <style>{`
         .skeleton { 
           background: ${darkMode ? '#1A1A1A' : '#E1E1E1'};
-          background-image: linear-gradient(90deg, transparent, ${darkMode ? '#222' : '#F0F0F0'}, transparent);
-          background-size: 200px 100%;
-          background-repeat: no-repeat;
-          animation: shimmer 1.5s infinite linear;
+          position: relative;
+          overflow: hidden;
         }
-        @keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+        .skeleton::after {
+          content: "";
+          position: absolute;
+          top: 0; left: 0; width: 100%; height: 100%;
+          background: linear-gradient(90deg, transparent, ${darkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)'}, transparent);
+          animation: shimmer 1.5s infinite;
+        }
+        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
       `}</style>
     </div>
   );
@@ -67,8 +69,8 @@ const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, 
             <h3 style={{ fontSize: '18px', fontWeight: '800', marginBottom: '8px' }}>Sign Out?</h3>
             <p style={{ fontSize: '13px', opacity: 0.5, marginBottom: '24px', lineHeight: '1.4' }}>You'll need to log back in to access your dashboard.</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button onClick={handleLogout} style={{ padding: '16px', borderRadius: '16px', background: '#FF3B30', color: '#fff', border: 'none', fontWeight: '800', fontSize: '13px' }}>LOGOUT</button>
-              <button onClick={() => setModalOpen(false)} style={{ padding: '16px', borderRadius: '16px', background: 'transparent', color: colors.text, border: `1px solid ${colors.border}`, fontSize: '13px', fontWeight: '700' }}>CANCEL</button>
+              <button onClick={handleLogout} style={{ padding: '16px', borderRadius: '16px', background: '#FF3B30', color: '#fff', border: 'none', fontWeight: '800', fontSize: '13px', cursor: 'pointer' }}>LOGOUT</button>
+              <button onClick={() => setModalOpen(false)} style={{ padding: '16px', borderRadius: '16px', background: 'transparent', color: colors.text, border: `1px solid ${colors.border}`, fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>CANCEL</button>
             </div>
           </div>
         </div>
@@ -82,30 +84,37 @@ const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, 
           border: `1px solid ${colors.border}`, margin: '0 auto 20px', 
           position: 'relative', boxShadow: `0 10px 30px rgba(0,0,0,${darkMode ? '0.4' : '0.1'})`
         }}>
-          <div style={{ width: '90px', height: '90px', borderRadius: '24px', overflow: 'hidden', backgroundColor: darkMode ? '#000' : '#f0f0f0' }}>
-            {avatarMap[profileData?.avatar_id] ? (
-              <img src={avatarMap[profileData.avatar_id]} alt="pfp" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-            ) : (
-              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.2 }}>
-                <UserCircle size={50} />
-              </div>
-            )}
+          <div style={{ 
+            width: '90px', height: '90px', borderRadius: '24px', 
+            backgroundColor: darkMode ? '#1A1A1A' : '#F5F5F5',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: `1px solid ${colors.border}`
+          }}>
+            <span style={{ 
+              fontSize: '36px', 
+              fontWeight: '900', 
+              color: colors.accent,
+              textShadow: darkMode ? `0 0 20px ${colors.accent}4D` : 'none'
+            }}>
+              {getInitial()}
+            </span>
           </div>
         </div>
         
         <h2 style={{ fontSize: '24px', fontWeight: '900', margin: '0', letterSpacing: '-0.5px', textTransform: 'uppercase' }}>
-          {profileData?.full_name || 'STUDENT'}
+          {profileData?.full_name || 'MEMBER'}
         </h2>
-        <div style={{ display: 'inline-block', marginTop: '8px', padding: '4px 12px', backgroundColor: 'rgba(0,122,255,0.1)', borderRadius: '20px', border: '1px solid rgba(0,122,255,0.1)' }}>
-           <p style={{ color: colors.accent, fontSize: '10px', fontWeight: '800', margin: 0, letterSpacing: '1px' }}>
-            {profileData?.matric_no || 'ID NOT SET'}
+        
+        <div style={{ display: 'inline-block', marginTop: '8px', padding: '6px 14px', backgroundColor: `${colors.accent}14`, borderRadius: '20px', border: `1px solid ${colors.accent}1A` }}>
+           <p style={{ color: colors.accent, fontSize: '9px', fontWeight: '900', margin: 0, letterSpacing: '1.2px' }}>
+            {profileData?.matric_no ? `ID: ${profileData.matric_no}` : 'PREMIUM ACCOUNT'}
           </p>
         </div>
       </div>
 
       {/* GLOBAL STATS */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '35px' }}>
-        <StatCard icon={<BarChart3 size={18} color="#5856D6" />} value={stats?.courses || 0} label="Courses" colors={colors} />
+        <StatCard icon={<BarChart3 size={18} color="#5856D6" />} value={stats?.courses || 0} label="Projects" colors={colors} />
         <StatCard icon={<BookOpen size={18} color="#34C759" />} value={stats?.totalTasks || 0} label="Tasks" colors={colors} />
       </div>
 
@@ -113,8 +122,8 @@ const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '30px' }}>
         <h4 style={{ fontSize: '10px', fontWeight: '900', color: '#555', letterSpacing: '1px', marginBottom: '8px', paddingLeft: '8px' }}>MANAGEMENT</h4>
         <MenuButton icon={<UserCog size={18} color="#AF52DE" />} label="Edit Profile" onClick={() => setActiveTab('edit-profile')} colors={colors} />
-        <BookOpenButton icon={<BookOpen size={18} color="#007AFF" />} label="Course Manager" onClick={() => setActiveTab('course-manager')} colors={colors} />
-        <MenuButton icon={<Clock size={18} color="#FF9500" />} label="Timetable" onClick={() => setActiveTab('schedule-manager')} colors={colors} />
+        <MenuButton icon={<BookOpen size={18} color={colors.accent} />} label="Workspace Manager" onClick={() => setActiveTab('course-manager')} colors={colors} />
+        <MenuButton icon={<Clock size={18} color="#FF9500" />} label="My Schedule" onClick={() => setActiveTab('schedule-manager')} colors={colors} />
         
         <h4 style={{ fontSize: '10px', fontWeight: '900', color: '#555', letterSpacing: '1px', marginBottom: '8px', marginTop: '12px', paddingLeft: '8px' }}>SYSTEM</h4>
         <MenuButton icon={<Settings size={18} color="#8E8E93" />} label="App Settings" onClick={() => setActiveTab('config')} colors={colors} />
@@ -127,7 +136,7 @@ const Profile = ({ setActiveTab, theme, darkMode, stats, userName, profileData, 
       <style>{`
         .stat-card { transition: all 0.2s ease; }
         .stat-card:active { transform: scale(0.95); }
-        .menu-btn { transition: all 0.2s ease; }
+        .menu-btn { transition: all 0.2s ease; outline: none; }
         .menu-btn:active { transform: scale(0.98); background-color: ${darkMode ? '#1a1a1a' : '#f9f9f9'} !important; }
         @keyframes scaleUp { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
       `}</style>
@@ -147,7 +156,7 @@ const MenuButton = ({ icon, label, onClick, colors }) => (
   <button className="menu-btn" onClick={onClick} style={{ 
     display: 'flex', alignItems: 'center', width: '100%', padding: '14px 16px', 
     backgroundColor: colors.card, border: `1px solid ${colors.border}`, 
-    borderRadius: '20px', cursor: 'pointer', gap: '16px', outline: 'none'
+    borderRadius: '20px', cursor: 'pointer', gap: '16px', borderStyle: 'solid'
   }}>
     <div style={{ 
       backgroundColor: 'rgba(255,255,255,0.03)', 
@@ -166,9 +175,6 @@ const MenuButton = ({ icon, label, onClick, colors }) => (
     <ChevronRight size={16} style={{ opacity: 0.2 }} />
   </button>
 );
-
-// Specifically defining BookOpenButton since it was part of the original structure
-const BookOpenButton = MenuButton;
 
 const logoutStyle = {
   width: '100%', marginTop: '40px', padding: '16px', border: 'none', background: 'transparent',

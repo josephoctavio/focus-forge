@@ -70,7 +70,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
         return;
       }
 
-      // 1. RE-AUTHENTICATION (Required for sensitive actions)
+      // 1. RE-AUTHENTICATION
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: confirmPassword,
@@ -97,12 +97,17 @@ const PrivacySecurity = ({ onBack, theme }) => {
       } 
       
       else if (modalType === 'reset') {
+        // WIPES DATA + RESETS THEME TO DEFAULT BLUE & DARK MODE
         await Promise.all([
           supabase.from('assignments').delete().eq('user_id', user.id),
           supabase.from('courses').delete().eq('user_id', user.id),
-          supabase.from('timetable').delete().eq('user_id', user.id)
+          supabase.from('timetable').delete().eq('user_id', user.id),
+          supabase.from('profiles').update({ 
+            theme_color: '#007AFF', 
+            dark_mode: true 
+          }).eq('id', user.id)
         ]);
-        window.location.reload();
+        window.location.reload(); // Reload to apply factory settings
       }
 
     } catch (err) {
@@ -147,7 +152,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
             </h2>
             <p style={{ fontSize: '14px', opacity: 0.5, lineHeight: '1.6', marginBottom: '28px' }}>
                 {modalType === 'delete' && "Everything—courses, tasks, and your profile—will be erased forever. This cannot be undone."}
-                {modalType === 'reset' && "All your courses and tasks will be wiped, but your account and matric info will stay."}
+                {modalType === 'reset' && "All your courses and tasks will be wiped, and your theme will reset to default blue."}
                 {modalType === 'logout' && "Ready to head out? You'll need to sign back in to access your flow."}
             </p>
             
@@ -177,7 +182,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
 
       {/* HEADER */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '35px', paddingTop: '10px' }}>
-        <button onClick={onBack} style={{ background: theme.card, border: `1px solid theme.border`, borderRadius: '16px', padding: '12px', color: theme.text }}>
+        <button onClick={onBack} style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '12px', color: theme.text, cursor: 'pointer' }}>
           <ArrowLeft size={20} />
         </button>
         <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0 }}>Privacy & Security</h1>
@@ -208,14 +213,14 @@ const PrivacySecurity = ({ onBack, theme }) => {
           <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button 
                 onClick={() => setShowNewPassword(!showNewPassword)}
-                style={{ background: 'transparent', border: 'none', padding: '10px', opacity: 0.4 }}
+                style={{ background: 'transparent', border: 'none', padding: '10px', opacity: 0.4, cursor: 'pointer' }}
             >
                 {showNewPassword ? <EyeOff size={18} color={theme.text} /> : <Eye size={18} color={theme.text} />}
             </button>
             <button 
                 onClick={handleInternalPasswordChange}
                 disabled={updateLoading || !newPassword}
-                style={{ backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '11px', opacity: !newPassword ? 0.3 : 1 }}
+                style={{ backgroundColor: theme.accent, color: '#fff', border: 'none', padding: '10px 16px', borderRadius: '12px', fontWeight: '900', fontSize: '11px', opacity: !newPassword ? 0.3 : 1, cursor: 'pointer' }}
             >
                 {updateLoading ? '...' : 'SAVE'}
             </button>
@@ -227,7 +232,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
       <h3 style={{ fontSize: '11px', fontWeight: '900', color: theme.danger, textTransform: 'uppercase', letterSpacing: '2px', margin: '40px 0 15px 10px' }}>Danger Zone</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
         <SecurityRow icon={<LogOut size={18} color={theme.text} />} label="Sign Out" desc="Log out of all sessions" onClick={() => setModalType('logout')} theme={theme} />
-        <SecurityRow icon={<RefreshCw size={18} color="#FF9500" />} label="Nuclear Reset" desc="Wipe courses & tasks" onClick={() => setModalType('reset')} theme={theme} />
+        <SecurityRow icon={<RefreshCw size={18} color="#FF9500" />} label="Nuclear Reset" desc="Wipe courses & tasks + Default theme" onClick={() => setModalType('reset')} theme={theme} />
         <SecurityRow icon={<Trash2 size={18} color={theme.danger} />} label="Delete Account" desc="Permanent data destruction" onClick={() => setModalType('delete')} theme={theme} />
       </div>
 

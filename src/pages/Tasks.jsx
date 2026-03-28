@@ -34,7 +34,6 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
     setShakeKey(prev => prev + 1);
   };
 
-  // Helper to match course ID to course details since App.jsx passes raw assignments
   const getCourseInfo = (courseId) => {
     const course = courses.find(c => c.id === courseId);
     return course ? { name: course.name, color: course.color } : { name: 'Unknown Course', color: '#999' };
@@ -53,7 +52,7 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
     if (!dbError) {
       showToast("Saved Successfully");
       setTitle(''); setDueDate(''); setSelectedCourse(null); setIsFormOpen(false); setError(null);
-      if (refreshData) await refreshData(); // Tell App.jsx to update global state instantly!
+      if (refreshData) await refreshData(); 
     } else {
       triggerError("Failed to save task");
     }
@@ -65,7 +64,7 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
     const { error } = await supabase.from('assignments').update({ status: newStatus }).eq('id', id);
     if (!error) {
       showToast(newStatus === 'completed' ? "Completed!" : "Reopened");
-      if (refreshData) refreshData(); // Update global state
+      if (refreshData) refreshData(); 
     }
   };
 
@@ -74,7 +73,7 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
       await supabase.from('assignments').delete().eq('id', id);
       showToast("Deleted Successfully", "delete");
       closeModal();
-      if (refreshData) refreshData(); // Update global state
+      if (refreshData) refreshData(); 
     });
   };
 
@@ -83,18 +82,16 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
       await supabase.from('assignments').delete().neq('id', 0);
       showToast("All Tasks Cleared", "delete");
       closeModal();
-      if (refreshData) refreshData(); // Update global state
+      if (refreshData) refreshData(); 
     });
   };
 
-  // --- FILTERING ---
   const filteredTasks = assignments.filter(t => {
     if (filter === 'pending') return t.status === 'pending';
     if (filter === 'completed') return t.status === 'completed';
     return true;
   });
 
-  // --- SKELETON LOADING UI ---
   if (loading && assignments.length === 0) {
     return (
       <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: theme?.bg, paddingBottom: '120px' }}>
@@ -125,53 +122,49 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
   return (
     <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: theme?.bg, color: theme?.text, transition: 'all 0.3s ease', position: 'relative', paddingBottom: '120px' }}>
       
-      {/* TOAST NOTIFICATION */}
       {toast.show && (
-        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', backgroundColor: toast.type === 'delete' ? '#FF2D55' : '#34C759', color: '#fff', padding: '12px 24px', borderRadius: '50px', zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13px', boxShadow: '0 8px 20px rgba(0,0,0,0.3)', animation: 'slideUpToast 0.3s ease-out' }}>
+        <div style={{ position: 'fixed', bottom: '100px', left: '50%', transform: 'translateX(-50%)', backgroundColor: toast.type === 'delete' ? theme?.danger : '#34C759', color: '#fff', padding: '12px 24px', borderRadius: '50px', zIndex: 10001, display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', fontSize: '13px', boxShadow: '0 8px 20px rgba(0,0,0,0.3)', animation: 'slideUpToast 0.3s ease-out' }}>
           {toast.type === 'delete' ? <Trash2 size={14}/> : <CheckCircle2 size={14} />}
           {toast.message}
         </div>
       )}
 
-      {/* CONFIRMATION MODAL */}
       {modalConfig.isOpen && (
         <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: '20px' }}>
           <div style={{ backgroundColor: theme?.card, border: `1px solid ${theme?.border}`, padding: '25px', borderRadius: '24px', maxWidth: '350px', width: '100%', textAlign: 'center', animation: 'scaleUp 0.2s ease-out' }}>
-            <div style={{ backgroundColor: 'rgba(255,45,85,0.1)', width: '50px', height: '50px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
-              <AlertTriangle color="#FF2D55" size={24} />
+            <div style={{ backgroundColor: `${theme?.danger}15`, width: '50px', height: '50px', borderRadius: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 15px' }}>
+              <AlertTriangle color={theme?.danger} size={24} />
             </div>
             <h3 style={{ color: theme?.text, fontSize: '18px', fontWeight: '800' }}>{modalConfig.title}</h3>
             <p style={{ color: theme?.text, opacity: 0.6, fontSize: '14px', margin: '10px 0 25px' }}>{modalConfig.message}</p>
             <div style={{ display: 'flex', gap: '10px' }}>
               <button onClick={closeModal} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: theme?.border, color: theme?.text, border: 'none', fontWeight: '700' }}>CANCEL</button>
-              <button onClick={modalConfig.onConfirm} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: '#FF2D55', color: '#fff', border: 'none', fontWeight: '700' }}>CONFIRM</button>
+              <button onClick={modalConfig.onConfirm} style={{ flex: 1, padding: '12px', borderRadius: '12px', background: theme?.danger, color: '#fff', border: 'none', fontWeight: '700' }}>CONFIRM</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* HEADER */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
         <div>
           <h2 style={{ fontSize: '28px', fontWeight: '900', margin: 0, letterSpacing: '-0.5px' }}>Tasks</h2>
           <p style={{ fontSize: '12px', opacity: 0.5, fontWeight: '700' }}>{assignments.filter(t => t.status === 'pending').length} REMAINING</p>
         </div>
-        <button onClick={() => { setIsFormOpen(!isFormOpen); setError(null); }} style={{ backgroundColor: isFormOpen ? theme?.card : '#007AFF', color: isFormOpen ? theme?.text : '#fff', width: '44px', height: '44px', borderRadius: '14px', border: isFormOpen ? `1px solid ${theme?.border}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(0,122,255,0.2)' }}>
+        <button onClick={() => { setIsFormOpen(!isFormOpen); setError(null); }} style={{ backgroundColor: isFormOpen ? theme?.card : theme?.accent, color: isFormOpen ? theme?.text : '#fff', width: '44px', height: '44px', borderRadius: '14px', border: isFormOpen ? `1px solid ${theme?.border}` : 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: isFormOpen ? 'none' : `0 4px 12px ${theme?.accent}33` }}>
           {isFormOpen ? <ChevronUp size={24} /> : <Plus size={24} />}
         </button>
       </div>
 
-      {/* ADD TASK FORM */}
       {isFormOpen && (
-        <div key={shakeKey} style={{ backgroundColor: theme?.card, padding: '20px', borderRadius: '24px', border: `1px solid ${error ? '#FF2D55' : theme?.border}`, marginBottom: '25px', animation: error ? 'shake 0.4s both' : 'fadeIn 0.3s ease' }}>
+        <div key={shakeKey} style={{ backgroundColor: theme?.card, padding: '20px', borderRadius: '24px', border: `1px solid ${error ? theme?.danger : theme?.border}`, marginBottom: '25px', animation: error ? 'shake 0.4s both' : 'fadeIn 0.3s ease' }}>
           <div style={{ marginBottom: '15px' }}>
             <label style={{ fontSize: '11px', color: theme?.text, opacity: 0.5, fontWeight: '800', marginBottom: '8px', display: 'block' }}>TASK NAME *</label>
-            <input type="text" maxLength={40} placeholder="e.g. Finish Lab Report" value={title} onChange={(e) => { setTitle(e.target.value); if(error) setError(null); }} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: theme?.bg, border: `1px solid ${error && !title ? '#FF2D55' : theme?.border}`, color: theme?.text, outline: 'none', boxSizing: 'border-box' }} />
+            <input type="text" maxLength={40} placeholder="e.g. Finish Lab Report" value={title} onChange={(e) => { setTitle(e.target.value); if(error) setError(null); }} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: theme?.bg, border: `1px solid ${error && !title ? theme?.danger : theme?.border}`, color: theme?.text, outline: 'none', boxSizing: 'border-box' }} />
           </div>
 
           <div style={{ marginBottom: '15px', position: 'relative' }} ref={dropdownRef}>
             <label style={{ fontSize: '11px', color: theme?.text, opacity: 0.5, fontWeight: '800', marginBottom: '8px', display: 'block' }}>COURSE *</label>
-            <div onClick={() => setIsDropdownOpen(!isDropdownOpen)} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: theme?.bg, border: `1px solid ${error && !selectedCourse ? '#FF2D55' : theme?.border}`, color: theme?.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
+            <div onClick={() => setIsDropdownOpen(!isDropdownOpen)} style={{ width: '100%', padding: '14px', borderRadius: '12px', backgroundColor: theme?.bg, border: `1px solid ${error && !selectedCourse ? theme?.danger : theme?.border}`, color: theme?.text, display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
               <span style={{ opacity: selectedCourse ? 1 : 0.4 }}>{selectedCourse ? selectedCourse.name : "Choose a course"}</span>
               <ChevronDown size={18} style={{ transform: isDropdownOpen ? 'rotate(180deg)' : 'rotate(0)', transition: '0.2s', opacity: 0.5 }} />
             </div>
@@ -193,23 +186,21 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
             <label style={{ fontSize: '11px', color: theme?.text, opacity: 0.5, fontWeight: '800', marginBottom: '8px', display: 'block' }}>DATE (OPTIONAL)</label>
             <div style={{ display: 'flex', gap: '10px' }}>
               <input type="date" min={today} value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={{ flex: 1, padding: '14px', borderRadius: '12px', backgroundColor: theme?.bg, border: `1px solid ${theme?.border}`, color: theme?.text, outline: 'none' }} />
-              <button onClick={addTask} disabled={isSaving} style={{ backgroundColor: '#007AFF', color: '#fff', padding: '0 25px', borderRadius: '12px', fontWeight: '800', border: 'none' }}>
+              <button onClick={addTask} disabled={isSaving} style={{ backgroundColor: theme?.accent, color: '#fff', padding: '0 25px', borderRadius: '12px', fontWeight: '800', border: 'none', cursor: 'pointer' }}>
                 {isSaving ? <Loader2 className="spin" size={18} /> : 'SAVE'}
               </button>
             </div>
           </div>
-          {error && <div style={{ color: '#FF2D55', fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={12}/> {error}</div>}
+          {error && <div style={{ color: theme?.danger, fontSize: '11px', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '4px' }}><AlertCircle size={12}/> {error}</div>}
         </div>
       )}
 
-      {/* FILTER BUTTONS */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
         {['all', 'pending', 'completed'].map((f) => (
-          <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', backgroundColor: filter === f ? '#007AFF' : theme?.card, color: filter === f ? '#fff' : '#888', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase' }}>{f}</button>
+          <button key={f} onClick={() => setFilter(f)} style={{ padding: '8px 16px', borderRadius: '20px', border: 'none', backgroundColor: filter === f ? theme?.accent : theme?.card, color: filter === f ? '#fff' : '#888', fontSize: '11px', fontWeight: '800', textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.2s ease' }}>{f}</button>
         ))}
       </div>
 
-      {/* TASK LIST */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {filteredTasks.length === 0 ? (
           <div style={{ height: '40vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center' }}>
@@ -222,7 +213,7 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
             const courseInfo = getCourseInfo(task.course_id);
             return (
               <div key={task.id} style={{ padding: '18px', backgroundColor: theme?.card, borderRadius: '20px', border: `1px solid ${theme?.border}`, display: 'flex', alignItems: 'center', gap: '12px', opacity: task.status === 'completed' ? 0.6 : 1 }}>
-                <button onClick={() => toggleStatus(task.id, task.status)} style={{ background: 'transparent', border: 'none', color: task.status === 'completed' ? '#34C759' : theme?.text, opacity: task.status === 'completed' ? 1 : 0.2 }}>
+                <button onClick={() => toggleStatus(task.id, task.status)} style={{ background: 'transparent', border: 'none', color: task.status === 'completed' ? '#34C759' : theme?.text, opacity: task.status === 'completed' ? 1 : 0.2, cursor: 'pointer' }}>
                   {task.status === 'completed' ? <CheckCircle size={26} /> : <Circle size={26} />}
                 </button>
                 <div style={{ flex: 1 }}>
@@ -235,7 +226,7 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
                     {task.due_date && <span style={{ fontSize: '10px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '600' }}><Calendar size={10}/> {new Date(task.due_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>}
                   </div>
                 </div>
-                <button onClick={() => deleteTask(task.id)} style={{ background: 'transparent', border: 'none', color: '#FF2D55', opacity: 0.3 }}><Trash2 size={18} /></button>
+                <button onClick={() => deleteTask(task.id)} style={{ background: 'transparent', border: 'none', color: theme?.danger, opacity: 0.3, cursor: 'pointer' }}><Trash2 size={18} /></button>
               </div>
             );
           })
@@ -243,7 +234,7 @@ const Tasks = ({ theme, darkMode, assignments = [], courses = [], loading, refre
       </div>
 
       {assignments.length >= 5 && !isFormOpen && (
-        <button onClick={clearAllTasks} style={{ width: '100%', padding: '16px', backgroundColor: 'transparent', border: `1px dashed ${theme?.border}`, color: '#FF2D55', borderRadius: '20px', fontWeight: '700', fontSize: '12px', marginTop: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+        <button onClick={clearAllTasks} style={{ width: '100%', padding: '16px', backgroundColor: 'transparent', border: `1px dashed ${theme?.border}`, color: theme?.danger, borderRadius: '20px', fontWeight: '700', fontSize: '12px', marginTop: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer' }}>
           <Trash2 size={14} /> CLEAR ALL TASKS ({assignments.length})
         </button>
       )}
