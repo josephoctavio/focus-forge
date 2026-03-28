@@ -1,16 +1,39 @@
-# React + Vite
+# 🛠️ Focus Forge
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+**Focus Forge** is a high-performance academic assistant designed to help students and professionals "forge" better study habits and manage their workflow with precision. Built for speed, reliability, and focus.
 
-Currently, two official plugins are available:
+[![Vite](https://img.shields.io/badge/Vite-8.0-646CFF?logo=vite)](https://vitejs.dev/)
+[![React](https://img.shields.io/badge/React-19.0-61DAFB?logo=react)](https://react.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-Database-3ECF8E?logo=supabase)](https://supabase.com/)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🚀 Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+* **Real-time Sync:** Powered by Supabase for seamless data management across devices.
+* **Academic Command Center:** Centralized dashboard for tracking tasks and focus sessions.
+* **PWA Ready:** Install Focus Forge directly to your desktop or mobile device for an app-like experience.
+* **Modern UI:** A clean, distraction-free interface built with React and Tailwind CSS.
+* **Iconic Clarity:** Utilizes Lucide-React for a consistent and intuitive visual language.
 
-## Expanding the ESLint configuration
+## 🛠️ Tech Stack
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **Frontend:** React 19 + Vite
+- **Styling:** Tailwind CSS
+- **Backend/Auth:** Supabase
+- **Icons:** Lucide React
+- **Notifications:** React Hot Toast
+- **Deployment:** [https://study-flowapp.netlify.app/ ]
+
+## 📦 Getting Started
+
+### Prerequisites
+- Node.js (Latest LTS recommended)
+- A Supabase Project
+
+### Installation
+
+1. **Clone the repository**
+   ```bash
+   git clone [https://github.com/josephoctavio/focus-forge.git](https://github.com/josephoctavio/focus-forge.git)
+   cd focus-forge
