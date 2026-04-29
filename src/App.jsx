@@ -21,6 +21,7 @@ import Tutorial from './pages/Tutorial';
 import About from './pages/About'; 
 import Feedback from './pages/Feedback';
 import AdminFeedback from './pages/AdminFeedback'; // --- IMPORTED ADMIN FEEDBACK ---
+import HelpCenter from './pages/HelpCenter'; // --- IMPORTED HELP CENTER ---
 
 function App() {
   const [session, setSession] = useState(null);
@@ -383,6 +384,14 @@ function App() {
             <AdminFeedback 
               setActiveTab={setActiveTab} 
               theme={theme} 
+            />
+          )}
+
+          {/* --- HELP CENTER TAB REGISTRATION --- */}
+          {activeTab === 'help-center' && (
+            <HelpCenter 
+              theme={theme} 
+              setActiveTab={setActiveTab} 
             />
           )}
           

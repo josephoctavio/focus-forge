@@ -15,7 +15,7 @@ import {
   Palette
 } from 'lucide-react';
 
-const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }) => {
+const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent, onRefreshData }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showAccentPicker, setShowAccentPicker] = useState(false);
 
@@ -31,13 +31,18 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }
 
   const handleRefreshApp = () => {
     setIsRefreshing(true);
+    
+    // Simulate network delay, then call the parent's refresh function if it exists
     setTimeout(() => {
-      window.location.reload();
+      if (typeof onRefreshData === 'function') {
+        onRefreshData();
+      }
+      setIsRefreshing(false); // Close the overlay smoothly
     }, 2000); 
   };
 
   const handleReportBug = () => {
-    window.location.href = "mailto:deltrynstudios@gmail.com?subject=Bug Report - Focus Forge";
+    window.location.href = "mailto:deltrynstudios@gmail.com?subject= Focus Forge ";
   };
 
   const SectionHeader = ({ title }) => (
@@ -73,7 +78,7 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }
           </div>
           <div style={{ textAlign: 'center' }}>
             <p style={{ fontWeight: '900', fontSize: '15px', letterSpacing: '1.5px', margin: '0 0 8px 0' }}>OPTIMIZING</p>
-            <p style={{ fontWeight: '600', fontSize: '12px', opacity: 0.4, margin: 0 }}>Syncing your campus flow...</p>
+            <p className="pulse-text" style={{ fontWeight: '600', fontSize: '12px', margin: 0 }}>Syncing your campus flow...</p>
           </div>
         </div>
       )}
@@ -199,11 +204,16 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <SettingItem 
             icon={<Mail size={18} color="#5856D6" />} 
-            label="Report a Bug" 
+            label="Contact Developers ✉️" 
             onClick={handleReportBug}
             theme={theme} 
         />
-        <SettingItem icon={<HelpCircle size={18} color="#8E8E93" />} label="Help Center" theme={theme} />
+        <SettingItem 
+            icon={<HelpCircle size={18} color="#8E8E93" />} 
+            label="Help Center" 
+            theme={theme} 
+            onClick={() => setActiveTab('help-center')} 
+        />
         <SettingItem 
             icon={<RefreshCcw size={18} color="#AF52DE" />} 
             label="Refresh App" 
@@ -223,8 +233,9 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }
 
       <style>{`
         .back-btn:active { transform: scale(0.92); }
-        .setting-row { transition: transform 0.1s ease, background-color 0.2s ease; }
+        .setting-row { transition: transform 0.1s ease, filter 0.2s ease, background-color 0.2s ease; }
         .setting-row:active { transform: scale(0.97); }
+        .setting-row:hover:not([style*="opacity: 0.4"]) { filter: brightness(1.05); } 
         
         .toggle-switch { width: 46px; height: 26px; background-color: #333; border-radius: 50px; position: relative; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
         .toggle-knob { width: 20px; height: 20px; background-color: white; border-radius: 50%; position: absolute; top: 3px; left: 3px; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
@@ -234,6 +245,14 @@ const Settings = ({ setActiveTab, theme, darkMode, toggleTheme, onUpdateAccent }
         .spin-icon { animation: spin 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite; }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        
+        /* New UI Improvement: Pulse animation for loading text */
+        .pulse-text { animation: pulseOpacity 1.5s infinite ease-in-out; }
+        @keyframes pulseOpacity { 
+          0%, 100% { opacity: 0.4; } 
+          50% { opacity: 1; } 
+        }
+
         .hide-scrollbar::-webkit-scrollbar { display: none; }
         .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>

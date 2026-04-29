@@ -8,7 +8,8 @@ import {
   Eye,
   EyeOff,
   Check,
-  ShieldAlert
+  ShieldAlert,
+  AlertCircle
 } from 'lucide-react';
 import { supabase } from '../supabaseClient';
 
@@ -23,6 +24,7 @@ const PrivacySecurity = ({ onBack, theme }) => {
   const [newPassword, setNewPassword] = useState('');
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [inlineError, setInlineError] = useState(''); // New custom error state
 
   const tooltipTimeout = useRef(null);
 
@@ -37,22 +39,31 @@ const PrivacySecurity = ({ onBack, theme }) => {
   };
 
   const handleInternalPasswordChange = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      setErrorMessage("Password must be at least 6 characters.");
-      setShouldShake(true);
-      setTimeout(() => setShouldShake(false), 500);
+    setInlineError('');
+    
+    // Custom Validation Checks
+    if (!newPassword || newPassword.length < 8) {
+      setInlineError("Password must be at least 8 characters.");
       return;
     }
-    
+
     setUpdateLoading(true);
     const { error } = await supabase.auth.updateUser({ password: newPassword });
 
     if (error) {
-      alert(error.message);
+      // Handle the "Same as old password" error specifically
+      if (error.message.toLowerCase().includes("new password should be different")) {
+        setInlineError("You can't use your current password as the new one.");
+      } else {
+        setInlineError(error.message);
+      }
+      setShouldShake(true);
+      setTimeout(() => setShouldShake(false), 500);
     } else {
       triggerTooltip();
       setNewPassword(''); 
       setShowNewPassword(false);
+      setInlineError('');
     }
     setUpdateLoading(false);
   };
@@ -70,7 +81,6 @@ const PrivacySecurity = ({ onBack, theme }) => {
         return;
       }
 
-      // 1. RE-AUTHENTICATION
       const { error: authError } = await supabase.auth.signInWithPassword({
         email: user.email,
         password: confirmPassword,
@@ -84,7 +94,6 @@ const PrivacySecurity = ({ onBack, theme }) => {
         return;
       }
 
-      // 2. DATA WIPING LOGIC
       if (modalType === 'delete') {
         await Promise.all([
           supabase.from('assignments').delete().eq('user_id', user.id),
@@ -97,7 +106,6 @@ const PrivacySecurity = ({ onBack, theme }) => {
       } 
       
       else if (modalType === 'reset') {
-        // WIPES DATA + RESETS THEME TO DEFAULT BLUE & DARK MODE
         await Promise.all([
           supabase.from('assignments').delete().eq('user_id', user.id),
           supabase.from('courses').delete().eq('user_id', user.id),
@@ -107,24 +115,23 @@ const PrivacySecurity = ({ onBack, theme }) => {
             dark_mode: true 
           }).eq('id', user.id)
         ]);
-        window.location.reload(); // Reload to apply factory settings
+        window.location.reload();
       }
 
     } catch (err) {
       setErrorMessage("An unexpected error occurred.");
-      console.error(err);
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div style={{ padding: '24px', color: theme.text, backgroundColor: theme.bg, minHeight: '100vh' }}>
+    <div style={{ padding: '24px', color: theme.text, backgroundColor: theme.bg, minHeight: '100vh', paddingBottom: '100px' }}>
       
       {/* SUCCESS TOOLTIP */}
       <div style={{
-        position: 'fixed', bottom: '110px', left: '50%', 
-        transform: `translateX(-50%) translateY(${showTooltip ? '0' : '50px'})`,
+        position: 'fixed', bottom: '40px', left: '50%', 
+        transform: `translateX(-50%) translateY(${showTooltip ? '0' : '100px'})`,
         opacity: showTooltip ? 1 : 0,
         backgroundColor: theme.card, border: `1px solid ${theme.border}`, 
         padding: '14px 28px', borderRadius: '50px',
@@ -151,15 +158,15 @@ const PrivacySecurity = ({ onBack, theme }) => {
                 {modalType === 'delete' ? 'Delete Account?' : modalType === 'reset' ? 'Nuclear Reset?' : 'Sign Out?'}
             </h2>
             <p style={{ fontSize: '14px', opacity: 0.5, lineHeight: '1.6', marginBottom: '28px' }}>
-                {modalType === 'delete' && "Everything—courses, tasks, and your profile—will be erased forever. This cannot be undone."}
-                {modalType === 'reset' && "All your courses and tasks will be wiped, and your theme will reset to default blue."}
-                {modalType === 'logout' && "Ready to head out? You'll need to sign back in to access your flow."}
+                {modalType === 'delete' && "This will erase all your data permanently. This action cannot be undone."}
+                {modalType === 'reset' && "All your courses, tasks and schedule will be wiped, and your app will reset back to default."}
+                {modalType === 'logout' && "Ready to head out? You'll need to sign back in to access your forge."}
             </p>
             
             {modalType !== 'logout' && (
               <input 
                 type="password" 
-                placeholder="Enter password to verify"
+                placeholder="Enter current password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 style={{ width: '100%', padding: '18px', borderRadius: '18px', backgroundColor: theme.bg, border: `1px solid ${errorMessage ? theme.danger : theme.border}`, color: theme.text, textAlign: 'center', marginBottom: '12px', outline: 'none', fontWeight: '600' }}
@@ -185,20 +192,20 @@ const PrivacySecurity = ({ onBack, theme }) => {
         <button onClick={onBack} style={{ background: theme.card, border: `1px solid ${theme.border}`, borderRadius: '16px', padding: '12px', color: theme.text, cursor: 'pointer' }}>
           <ArrowLeft size={20} />
         </button>
-        <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0 }}>Privacy & Security</h1>
+        <h1 style={{ fontSize: '24px', fontWeight: '900', margin: 0, letterSpacing: '-0.5px' }}>Privacy & Security</h1>
       </div>
 
       {/* SECTION: PASSWORD */}
-      <h3 style={{ fontSize: '11px', fontWeight: '900', color: theme.accent, textTransform: 'uppercase', letterSpacing: '2px', margin: '25px 0 15px 10px' }}>Authentication</h3>
+      <h3 style={sectionLabelStyle(theme.accent)}>Authentication</h3>
       
-      <div style={{ backgroundColor: theme.card, border: `1px solid ${theme.border}`, borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div className={shouldShake ? 'shake-element' : ''} style={{ backgroundColor: theme.card, border: `1px solid ${inlineError ? theme.danger : theme.border}`, borderRadius: '24px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ backgroundColor: `${theme.accent}15`, padding: '12px', borderRadius: '14px' }}>
             <Lock size={20} color={theme.accent} />
           </div>
           <div>
-            <p style={{ margin: 0, fontWeight: '800', fontSize: '16px' }}>Security Key</p>
-            <p style={{ margin: '2px 0 0 0', fontSize: '12px', opacity: 0.4 }}>Update your login credentials</p>
+            <p style={{ margin: 0, fontWeight: '800', fontSize: '16px' }}>Update Password</p>
+            <p style={{ margin: '2px 0 0 0', fontSize: '12px', opacity: 0.4 }}>Choose a strong, unique key</p>
           </div>
         </div>
 
@@ -207,8 +214,8 @@ const PrivacySecurity = ({ onBack, theme }) => {
             type={showNewPassword ? "text" : "password"}
             placeholder="Set new password"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            style={{ width: '100%', padding: '18px', paddingRight: '100px', borderRadius: '18px', backgroundColor: theme.bg, border: `1px solid ${theme.border}`, color: theme.text, outline: 'none', fontSize: '15px', fontWeight: '600' }}
+            onChange={(e) => {setNewPassword(e.target.value); setInlineError('');}}
+            style={{ width: '100%', padding: '18px', paddingRight: '100px', borderRadius: '18px', backgroundColor: theme.bg, border: `1px solid ${inlineError ? theme.danger + '40' : theme.border}`, color: theme.text, outline: 'none', fontSize: '15px', fontWeight: '600' }}
           />
           <div style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button 
@@ -226,35 +233,55 @@ const PrivacySecurity = ({ onBack, theme }) => {
             </button>
           </div>
         </div>
+
+        {inlineError && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: theme.danger }}>
+            <AlertCircle size={14} />
+            <span style={{ fontSize: '12px', fontWeight: '700' }}>{inlineError}</span>
+          </div>
+        )}
       </div>
 
+      {/* SECTION: SESSIONS */}
+      <h3 style={sectionLabelStyle(theme.text)}>Sessions</h3>
+      <SecurityRow icon={<LogOut size={18} color={theme.text} />} label="Sign Out" desc="Log out of the current session" onClick={() => setModalType('logout')} theme={theme} />
+
       {/* DANGER ZONE */}
-      <h3 style={{ fontSize: '11px', fontWeight: '900', color: theme.danger, textTransform: 'uppercase', letterSpacing: '2px', margin: '40px 0 15px 10px' }}>Danger Zone</h3>
+      <h3 style={sectionLabelStyle(theme.danger)}>Danger Zone</h3>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <SecurityRow icon={<LogOut size={18} color={theme.text} />} label="Sign Out" desc="Log out of all sessions" onClick={() => setModalType('logout')} theme={theme} />
-        <SecurityRow icon={<RefreshCw size={18} color="#FF9500" />} label="Nuclear Reset" desc="Wipe courses & tasks + Default theme" onClick={() => setModalType('reset')} theme={theme} />
-        <SecurityRow icon={<Trash2 size={18} color={theme.danger} />} label="Delete Account" desc="Permanent data destruction" onClick={() => setModalType('delete')} theme={theme} />
+        <SecurityRow icon={<RefreshCw size={18} color="#FF9500" />} label="Nuclear Reset" desc="Wipe all app data & settings" onClick={() => setModalType('reset')} theme={theme} />
+        <SecurityRow icon={<Trash2 size={18} color={theme.danger} />} label="Delete Account" desc="Permanent account destruction" onClick={() => setModalType('delete')} theme={theme} />
       </div>
 
       <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-8px); }
-          40% { transform: translateX(8px); }
-          60% { transform: translateX(-8px); }
-          80% { transform: translateX(8px); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-6px); }
+          80% { transform: translateX(6px); }
         }
         .shake-element { animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both; }
         .security-btn { transition: all 0.2s ease; }
-        .security-btn:active { transform: scale(0.96); opacity: 0.8; }
+        .security-btn:active { transform: scale(0.98); opacity: 0.9; }
       `}</style>
     </div>
   );
 };
 
+const sectionLabelStyle = (color) => ({
+    fontSize: '11px', 
+    fontWeight: '900', 
+    color: color, 
+    textTransform: 'uppercase', 
+    letterSpacing: '2px', 
+    margin: '35px 0 15px 10px',
+    opacity: 0.8
+});
+
 const SecurityRow = ({ icon, label, desc, onClick, theme }) => (
-  <button className="security-btn" onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '20px', backgroundColor: theme.card, border: `1px solid ${theme.border}`, borderRadius: '24px', gap: '16px', textAlign: 'left', cursor: 'pointer', color: theme.text }}>
-    <div style={{ backgroundColor: `${theme.text}05`, padding: '12px', borderRadius: '14px', border: `1px solid ${theme.border}` }}>{icon}</div>
+  <button className="security-btn" onClick={onClick} style={{ display: 'flex', alignItems: 'center', width: '100%', padding: '20px', backgroundColor: theme.card, border: `1px solid ${theme.border}`, borderRadius: '24px', gap: '16px', textAlign: 'left', cursor: 'pointer', color: theme.text, marginBottom: '8px' }}>
+    <div style={{ backgroundColor: `${theme.text}08`, padding: '12px', borderRadius: '14px', border: `1px solid ${theme.border}` }}>{icon}</div>
     <div style={{ flex: 1 }}>
       <p style={{ margin: 0, fontWeight: '800', fontSize: '15px' }}>{label}</p>
       <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.4, fontWeight: '500' }}>{desc}</p>
